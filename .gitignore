@@ -1,0 +1,4 @@
+# the repository itself: built by reprepro, not source
+/repos/*/db/
+/repos/*/dists/
+/repos/*/pool/
