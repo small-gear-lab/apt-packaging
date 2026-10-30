@@ -1,3 +1,12 @@
+rustls-ffi-quic (0.15.7+quic1-1~smallgearlab2) resolute; urgency=medium
+
+  * Built from the tag v0.15.7+quic1 of rustls-ffi-quic (REV names the tag
+    now): the design document that the package ships is the current one,
+    and the renaming commit is the output of downstream/rename-symbols.py
+    only. The library is the same.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 22:00:00 +0900
+
 rustls-ffi-quic (0.15.7+quic1-1~smallgearlab1) resolute; urgency=medium
 
   * Initial packaging of rustls-ffi-quic: rustls-ffi 0.15.7 with a C API over
