@@ -1,0 +1,10 @@
+# Strings that must not appear in the published tree, one per line as  label :: regex
+# (ripgrep syntax, matched case-insensitively). Copy this file to
+#   ~/.config/sgl-check-publishable.patterns
+# and keep that copy out of version control: what it lists is exactly what you do not want to publish.
+# scripts/check-publishable.sh prints only file:line for a match, never the text.
+
+employer domain :: example\.co\.jp
+login name at the employer :: your-login-name
+signing key keygrip :: 0{40}
+password-manager entry name :: Name of your rbw entry

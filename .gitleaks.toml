@@ -1,0 +1,14 @@
+title = "small-gear-lab apt"
+
+[extend]
+useDefault = true
+
+# The generated repository (binary debs and reprepro's databases) is never published. Keep this list in
+# step with `excludes` in scripts/check-publishable.sh. Single findings that were checked and are fine go
+# in .gitleaksignore, not here.
+[allowlist]
+description = "git's own files and the generated repository output"
+paths = [
+  '''(^|/)\.git/''',
+  '''^repos/[^/]+/(pool|db|dists)/''',
+]

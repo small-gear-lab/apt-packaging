@@ -1,0 +1,7 @@
+# Findings that were looked at and are not secrets. One per line: <file>:<rule>:<line>.
+# The line number is part of the fingerprint, so a change that moves the line makes gitleaks report it
+# again; check it and update the number here.
+
+# curl's release-signing key fingerprint (public, published at https://daniel.haxx.se/mykey.asc);
+# build.sh compares the verified signature with it. "key_fpr" and the hex string trip generic-api-key.
+packaging/curl/build.sh:generic-api-key:26
