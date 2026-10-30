@@ -1,0 +1,44 @@
+curl (8.13.0-2) unstable; urgency=medium
+
+  The curl CLI is now back to using OpenSSL, instead of GnuTLS:
+    HTTP/3 support is still there, compared to the GnuTLS curl CLI.
+    The performance of HTTP/3 on OpenSSL is not as good, but it's also not used
+    by default.
+
+ -- Samuel Henrique <samueloph@debian.org>  Sun, 06 Apr 2025 22:13:18 +0100
+
+curl (8.8.0-2) unstable; urgency=medium
+
+  The curl CLI is now using GnuTLS instead of OpenSSL:
+    This change was required in order to enable support for HTTP3. We are still
+    providing an OpenSSL backed libcurl so dependencies are not affected.
+
+    In the unlikely case that you notice a regression in the curl CLI due to
+    this change, please open a bugreport.
+
+  The curl CLI now supports HTTP3:
+    You can now call curl with "--http3-only" or "--http3".
+
+  wcurl - a simple wrapper around curl to easily download files:
+    We started shipping an utility for users who just need to download a file
+    without having to remember parameters. This utility will pick sane defaults
+    and is supposed to be a replacement for the simpler uses of wget.
+
+    By default, wcurl will:
+      - Percent-encode whitespaces in URLs;
+      - Download multiple URLs in parallel if the installed curl's version is >= 7.66.0;
+      - Follow redirects;
+      - Automatically choose a filename as output;
+      - Avoid overwriting files if the installed curl's version is >= 7.83.0 (--no-clobber);
+      - Perform retries;
+      - Set the downloaded file timestamp to the value provided by the server, if available;
+      - Disable **curl**'s URL globbing parser so {} and [] characters in URLs are not treated specially;
+      - Percent-decode the resulting filename;
+      - Use "index.html" as default filename if there's none in the URL.
+
+    A manpage is provided as well, check wcurl(1).
+
+    Example to download a single file:
+    $ wcurl example.com/filename.txt
+
+ -- Samuel Henrique <samueloph@debian.org>  Sun, 30 Jun 2024 13:53:05 +0100

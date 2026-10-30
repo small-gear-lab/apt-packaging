@@ -1,0 +1,64 @@
+From: Benjamin Moody <benjamin.moody@gmail.com>
+Date: Wed, 27 Mar 2024 18:10:56 +0000
+Subject: Omit directories embedding arch info from curl-config
+
+In order to (partially) multi-arch-ify curl-config, remove all
+mention of @includedir@ and @libdir@ from the script.  On Debian, the actual
+header and library directories are architecture-dependent, but will always be
+in the C compiler's default search path, so -I and -L options are not
+necessary (and may be harmful in multi-arch environments.)
+
+Origin: vendor
+Bug-Debian: https://bugs.debian.org/731998
+Bug-Debian: https://bugs.debian.org/1075802
+Forwarded: not-needed
+Reviewed-by: Alessandro Ghedini <ghedo@debian.org>
+Last-Update: 2025-02-05
+---
+ curl-config.in | 16 +++-------------
+ 1 file changed, 3 insertions(+), 13 deletions(-)
+
+diff --git a/curl-config.in b/curl-config.in
+index a1c8185..2172df8 100644
+--- a/curl-config.in
++++ b/curl-config.in
+@@ -29,8 +29,6 @@ prefix='@prefix@'
+ # Used in 'libdir'
+ # shellcheck disable=SC2034
+ exec_prefix="@exec_prefix@"
+-# shellcheck disable=SC2034
+-includedir="@includedir@"
+ 
+ usage()
+ {
+@@ -141,19 +139,11 @@ while test "$#" -gt 0; do
+     ;;
+ 
+   --cflags)
+-    if test "@includedir@" = '/usr/include'; then
+-      echo '@LIBCURL_PC_CFLAGS@'
+-    else
+-      echo "@LIBCURL_PC_CFLAGS@ -I@includedir@"
+-    fi
++    echo "@LIBCURL_PC_CFLAGS@"
+     ;;
+ 
+   --libs)
+-    if test "@libdir@" != '/usr/lib' && test "@libdir@" != '/usr/lib64'; then
+-      curllibdir="-L@libdir@ "
+-    else
+-      curllibdir=''
+-    fi
++    curllibdir=''
+     if test '@ENABLE_SHARED@' = 'no'; then
+       echo "${curllibdir}-lcurl @LIBCURL_PC_LIBS_PRIVATE@"
+     else
+@@ -167,7 +157,7 @@ while test "$#" -gt 0; do
+ 
+   --static-libs)
+     if test '@ENABLE_STATIC@' != 'no'; then
+-      echo "@libdir@/libcurl.@libext@ @LIBCURL_PC_LDFLAGS_PRIVATE@ @LIBCURL_PC_LIBS_PRIVATE@"
++      echo -Wl,-Bstatic -lcurl -Wl,-Bdynamic @LIBCURL_PC_LIBS_PRIVATE@
+     else
+       echo 'curl was built with static libraries disabled' >&2
+       exit 1

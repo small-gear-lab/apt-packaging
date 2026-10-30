@@ -1,0 +1,3 @@
+debian/build*/
+debian/tmp*/
+debian/config.cache

@@ -1,0 +1,205 @@
+#! /usr/bin/make -f
+
+# Include pkg-info to make use of DEB_VERSION and DEB_DISTRIBUTION
+include /usr/share/dpkg/pkg-info.mk
+
+# enable all hardening options (see #763372)
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+CONFIGURE_ARGS = -- --disable-dependency-tracking		\
+	--enable-symbol-hiding --enable-versioned-symbols	\
+	--enable-threaded-resolver --with-lber-lib=lber		\
+	--with-gssapi=/usr --with-nghttp2	\
+	--with-ngtcp2 --with-nghttp3	\
+	--includedir=/usr/include/$(DEB_HOST_MULTIARCH)		\
+	--with-zsh-functions-dir=/usr/share/zsh/vendor-completions \
+	--with-fish-functions-dir=/usr/share/fish/vendor_completions.d \
+	--with-ca-path=/etc/ssl/certs \
+	--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt \
+	--without-libssh --with-libssh2 \
+	--cache-file=$(CURDIR)/debian/config.cache
+
+# Experimental features, enabled here (Debian enables them only in experimental).
+CONFIGURE_ARGS += --enable-httpsrr \
+                  --enable-ssls-export \
+                  --enable-proxy-http3
+
+# Everything else upstream still offers: SCRAM via libgsasl, NTLM (opt-in since 8.20.0), and
+# OpenSSL's built-in CA store as a fallback. ECH needs an OpenSSL that has it (3.5 does not).
+CONFIGURE_ARGS += --with-libgsasl --enable-ntlm --with-ca-fallback
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  MAKEFLAGS += -j$(NUMJOBS)
+endif
+
+export DEB_CFLAGS_MAINT_APPEND = -D_DEB_HOST_ARCH=\"$(DEB_HOST_MULTIARCH)\" -DCURL_PATCHSTAMP=\"$(DEB_VERSION)\"
+export DEB_CXXFLAGS_MAINT_APPEND = -D_DEB_HOST_ARCH=\"$(DEB_HOST_MULTIARCH)\" -DCURL_PATCHSTAMP=\"$(DEB_VERSION)\"
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--no-undefined
+
+ifneq ($(filter pkg.curl.openssl-only,$(DEB_BUILD_PROFILES)),)
+	DEB_BUILD_PROFILES += pkg.curl.no-gnutls
+endif
+ifneq ($(filter pkg.curl.gnutls-only,$(DEB_BUILD_PROFILES)),)
+	DEB_BUILD_PROFILES += pkg.curl.no-openssl
+endif
+
+with_openssl := $(if $(filter pkg.curl.no-openssl,$(DEB_BUILD_PROFILES)),no,yes)
+# small-gear-lab: only the OpenSSL flavour is built (HTTP/3 needs OpenSSL >= 3.5 with ngtcp2).
+with_gnutls := no
+
+# Enable debug support when the debug profile is active.
+ifneq ($(filter pkg.curl.debug,$(DEB_BUILD_PROFILES)),)
+    CONFIGURE_ARGS += --enable-debug
+    TESTS_GENERAL_PARAMETERS += feat:debug
+endif
+
+%:
+	dh $@
+
+# Run configure for a specific curl flavour.
+#
+# First argument is the flavour name (openssl or gnutls).
+# Second argument is extra configure parameters (if any).
+define configure-curl
+mkdir -p debian/build-$(1)
+tar -cf - --exclude=debian/build* --exclude=.pc . \
+  | tar -xf - -C debian/build-$(1)
+cd debian/build-$(1) && \
+autoreconf -fi && \
+cp ../../ltmain.sh . && \
+dh_auto_configure \
+  $(CONFIGURE_ARGS) \
+  --with-$(1) \
+  $(2)
+endef
+
+override_dh_auto_configure:
+ifeq ($(with_openssl),yes)
+	$(call configure-curl,openssl)
+endif
+ifeq ($(with_gnutls),yes)
+	$(call configure-curl,gnutls)
+endif
+
+# Invoke dh_auto_build for a specific curl flavour.
+#
+# First argument is the flavour name (openssl or gnutls).
+define build-curl
+cd debian/build-$(1) && dh_auto_build
+endef
+
+override_dh_auto_build:
+ifeq ($(with_openssl),yes)
+	$(call build-curl,openssl)
+endif
+ifeq ($(with_gnutls),yes)
+	$(call build-curl,gnutls)
+endif
+
+# Test parameters that are passed to runtests.pl.
+# -n disables valgrind usage
+TESTS_GENERAL_PARAMETERS += -n
+
+# -j parallel tests: https://daniel.haxx.se/blog/2023/06/08/parallel-curl-tests/
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  TESTS_GENERAL_PARAMETERS += -j$(shell echo $$(( $(NUMJOBS) * 4 )))
+endif
+
+# These tests fail if a IPv6-only builder is used:
+# https://bugs.debian.org/1032343
+# https://github.com/curl/curl/issues/10682
+TESTS_FAILS_ON_IPV6_ONLY_MACHINES ?= $(addprefix ~, 300 301 303 304 306 309 310 325 364 400 401 403 406 407 408 409 410 414 417 560 678 987 988 989 1112 1272 1470 1561 1562 1630 1631 1632 2034 2037 2041 3000 3001 3102)
+
+TESTS_GENERAL_PARAMETERS += $(TESTS_FAILS_ON_IPV6_ONLY_MACHINES)
+
+# Test a specific curl flavour.
+#
+# First argument is the flavour name (openssl or gnutls).
+define test-curl
+cd debian/build-$(1) && VERBOSE=1 \
+  TFLAGS="$(TESTS_GENERAL_PARAMETERS)" \
+$(MAKE) $(MAKE_EXTRA_FLAGS) test-nonflaky
+endef
+
+override_dh_auto_test:
+ifeq ($(filter nocheck,$(DEB_BUILD_PROFILES)),)
+ifeq ($(with_openssl),yes)
+	$(call test-curl,openssl)
+endif
+ifeq ($(with_gnutls),yes)
+	$(call test-curl,gnutls)
+endif
+endif
+
+# Install a specific curl flavour.
+#
+# First argument is the flavour name (openssl or gnutls).
+# Second argument is the directory (under debian/) to install to.
+# Third argument is the list of packages to pass dh_install.
+define install-curl
+$(MAKE) -C debian/build-$(1) \
+   DESTDIR=$(CURDIR)/debian/$(2) install
+find $(CURDIR)/debian/$(2) -name '*.la' -delete
+dh_install $(3) --sourcedir=debian/$(2)
+endef
+
+override_dh_install:
+ifeq ($(with_openssl),yes)
+	$(call install-curl,openssl,tmp,-plibcurl4t64 -plibcurl4-openssl-dev -plibcurl4-doc -pcurl)
+endif
+ifeq ($(with_gnutls),yes)
+	$(call install-curl,gnutls,tmp-gnutls,-plibcurl3t64-gnutls -plibcurl4-gnutls-dev)
+endif
+
+# Modify curl-config to make it architecture-independent:
+# 1. In --static-libs output, replace the output of krb5-config (which
+#    currently includes architecture-specific paths) with a call at
+#    runtime to krb5-config.  Of course, this will only work correctly
+#    if the installed libkrb5-dev matches the architecture of the
+#    program you're linking, or if libkrb5-dev is made
+#    multiarch-compatible at some point in the future.  For dynamic
+#    linking this has no impact.
+# 2. In --configure output, replace the architecture-specific paths
+#    used for --libdir and --libexecdir with a literal backquoted call
+#    to dpkg-architecture.  This is functionally equivalent to the way
+#    debhelper actually invokes configure, and indicates to the user
+#    (who runs curl-config --configure in order to learn about how the
+#    library was compiled) that they are in fact using a multi-arch
+#    package.
+# 3. Likewise, replace the architecture name used for --build (and
+#    build_alias) with a literal backquoted call to dpkg-architecture.
+# 4. In --configure output, remove
+#    -fdebug-prefix-map=/buildd/specific/random/path=. and
+#    -ffile-prefix-map=/buildd/specific/random/path=. and
+#    --cache-file= (with its value).
+# 5. Remove -D_DEB_HOST_ARCH from CFLAGS.  This is a (hopefully
+#    temporary) hack needed to properly build curl with NSS PEM
+#    support in Debian.
+# 6. CFLAGS also contain some arch specific hardening flags so we
+#    replace it with dpkg-buildflags call.
+# 7. After t64 transition, CPPFLAGS also differ on 32bits t64 arches, so we
+#    replace it with dpkg-buildflags
+	sed -e "/-lcurl /s|`krb5-config --libs gssapi`|\`krb5-config --libs gssapi\`|" \
+	    -e "/--prefix/s|/$(DEB_HOST_MULTIARCH)'|/\\\`dpkg-architecture -qDEB_HOST_MULTIARCH\\\`'|g" \
+	    -e "/--prefix/s|=$(DEB_BUILD_GNU_TYPE)'|=\\\`dpkg-architecture -qDEB_BUILD_GNU_TYPE\\\`'|g" \
+	    -e "/-fdebug-prefix-map=/s|\(-fdebug-prefix-map=\)/[^ ]*=.||" \
+	    -e "/--cache-file=/s|\(--cache-file=\)/[^ ]*config\.cache||" \
+	    -e "/CFLAGS/s|CFLAGS=.\+\(-DCURL_PATCHSTAMP\)|CFLAGS=\\\`dpkg-buildflags --get CFLAGS \| sed -e \"/-ffile-prefix-map=/s\|\\\\(-ffile-prefix-map=\\\\)/[^ ]*=.\|\|\"\\\` \1|" \
+	    -e "/-D_DEB_HOST_ARCH=/s|-D_DEB_HOST_ARCH=\\\\\"[^ ']*\\\\\"||" \
+	    -e "/CPPFLAGS/s|CPPFLAGS=.\+\'|CPPFLAGS=\\\`dpkg-buildflags --get CPPFLAGS\\\`'\"|" \
+	    -i `find . -name curl-config`
+# When we get here, everything has been properly installed.  Because
+# of debhelper-compat 13, we have to remove some files that are
+# otherwise flagged as not installed and will cause the build to fail.
+	rm -rfv debian/tmp*/usr/share/aclocal/*
+
+override_dh_installchangelogs:
+	dh_installchangelogs CHANGES.md
+
+override_dh_compress:
+	dh_compress -X.pdf

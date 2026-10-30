@@ -1,0 +1,15 @@
+Tests: upstream-tests-openssl
+Depends: curl, @builddeps@
+Restrictions: allow-stderr
+
+Tests: upstream-event-based-tests-openssl
+Depends: @builddeps@
+Restrictions: allow-stderr
+
+Tests: curl-ldapi-test
+Depends: gcc, libc-dev, libcurl4-openssl-dev | libcurl-dev, libldap-dev, slapd, pkgconf
+Restrictions: allow-stderr, isolation-container, needs-root
+
+Tests: build-using-libcurl-openssl
+Depends: build-essential, libcurl4-openssl-dev, pkgconf
+Restrictions: superficial

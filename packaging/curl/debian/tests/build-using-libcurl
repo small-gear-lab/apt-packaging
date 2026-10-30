@@ -1,0 +1,12 @@
+#!/bin/bash
+# Build and run a program against libcurl, to verify that the headers and
+# pkg-config file are installed correctly
+
+set -e
+
+CROSS_COMPILE="${DEB_HOST_GNU_TYPE:+$DEB_HOST_GNU_TYPE-}"
+
+find . -iname parseurl.c -exec "${CROSS_COMPILE}gcc" \
+        -o "$AUTOPKGTEST_TMP/parseurl" {} $(pkgconf --cflags --libs libcurl) \;
+
+"$AUTOPKGTEST_TMP/parseurl"

@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+
+# Building curl is required because libauthretry (from "make test") requires
+# libcurl.
+#
+# It might be possible to patch the makefile to have libauthretry link against
+# the system's installed libcurl, patches welcome.
+#
+# openssl tests run against the system's installed curl.
+
+export DEB_BUILD_PROFILES="pkg.curl.openssl-only"
+export TESTS_GENERAL_PARAMETERS="-c /usr/bin/curl -vc /usr/bin/curl"
+export VERBOSE=1
+
+# Don't skip tests which fail on ipv6-only environments for autopkgtests.
+# I'm not aware of runners with this configuration for debci, and a retry
+# should be easy enough it it happens.
+# References:
+# https://bugs.debian.org/1032343
+# https://github.com/curl/curl/issues/10682
+export TESTS_FAILS_ON_IPV6_ONLY_MACHINES=""
+
+# Suffix used to name build log files for this specific test scenario
+export SUFFIX="openssl"
+
+. debian/tests/common-upstream-tests

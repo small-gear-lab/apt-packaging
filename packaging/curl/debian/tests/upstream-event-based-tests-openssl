@@ -1,0 +1,31 @@
+#!/bin/sh
+set -e
+
+# Building curl is required because libauthretry (from "make test") requires
+# libcurl.
+#
+# It might be possible to patch the makefile to have libauthretry link against
+# the system's installed libcurl, patches welcome.
+#
+# Event-based openssl tests are executed against the built curl and libcurl
+# instead of the system-installed versions. This is necessary because the
+# shipped curl does not include debug support for any backend.
+export DEB_BUILD_PROFILES="pkg.curl.openssl-only pkg.curl.debug"
+export VERBOSE=1
+
+# Don't skip tests which fail on ipv6-only environments for autopkgtests.
+# I'm not aware of runners with this configuration for debci, and a retry
+# should be easy enough it it happens.
+# References:
+# https://bugs.debian.org/1032343
+# https://github.com/curl/curl/issues/10682
+export TESTS_FAILS_ON_IPV6_ONLY_MACHINES=""
+
+# Append V=0 to MAKE_EXTRA_FLAGS in d/rules to reduce build verbosity. This
+# helps prevent exceeding the byte limit for logs in salsa ci autopkgtest jobs.
+export MAKE_EXTRA_FLAGS="V=0"
+
+# Suffix used to name build log files for this specific test scenario
+export SUFFIX="event_based_openssl"
+
+. debian/tests/common-upstream-tests
