@@ -1,3 +1,16 @@
+rustls-ffi-quic (0.15.7+quic3-1~smallgearlab1) resolute; urgency=medium
+
+  * The QUIC API follows the conventions of rustls-ffi (rustls_result for what
+    can fail, getters named get_*): _get_alert, _get_secret,
+    _get_negotiated_ciphersuite, _get_peer_certificate (a rustls_certificate,
+    then rustls_certificate_get_der) and _get_peer_transport_parameters replace
+    the functions that returned a bool. The helper before 1.16.0-1~smallgearlab3
+    does not work with it: Breaks, and dh_makeshlibs -V names this version.
+  * rustls_quic_connection_write_hs kept nothing of what did not fit in the
+    caller's buffer; it keeps it now.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sat, 31 Oct 2026 01:00:00 +0900
+
 rustls-ffi-quic (0.15.7+quic2-1~smallgearlab1) resolute; urgency=medium
 
   * From the tag v0.15.7+quic2 (on the branch renamed): the new function

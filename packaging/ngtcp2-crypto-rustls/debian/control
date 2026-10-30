@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                libngtcp2-dev,
-               librustls-quic-dev (>= 0.15.7+quic2),
+               librustls-quic-dev (>= 0.15.7+quic3),
                libssl-dev,
                pkgconf,
 Standards-Version: 4.7.3
@@ -14,8 +14,10 @@ Rules-Requires-Root: no
 Package: libngtcp2-crypto-rustls0
 Architecture: any
 Multi-Arch: same
+# the version is named here too: the shlibs come from the library that is installed when this is built
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+         librustls-quic0.15.7 (>= 0.15.7+quic3),
 Description: ngtcp2 crypto helper for Rustls
  ngtcp2 is an implementation of the QUIC protocol, and leaves the TLS part to
  a library. This is the helper that lets it use Rustls, through

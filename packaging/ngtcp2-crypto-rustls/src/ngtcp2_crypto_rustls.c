@@ -391,10 +391,16 @@ void ngtcp2_crypto_rustls_session_free(ngtcp2_crypto_rustls_session *s) {
 int ngtcp2_crypto_rustls_session_peer_certificate(
   const ngtcp2_crypto_rustls_session *s, size_t i, const uint8_t **der,
   size_t *len) {
+  const rustls_certificate *cert;
+
   if (s == NULL || s->tls == NULL) {
     return -1;
   }
-  return rustls_quic_connection_peer_certificate(s->tls, i, der, len) ? 0 : -1;
+  cert = rustls_quic_connection_get_peer_certificate(s->tls, i);
+  if (cert == NULL) {
+    return -1;
+  }
+  return rustls_certificate_get_der(cert, der, len) == RUSTLS_RESULT_OK ? 0 : -1;
 }
 
 ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
@@ -405,7 +411,7 @@ ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
   if (s->tls == NULL) {
     return NULL;
   }
-  cipher_id = rustls_quic_connection_cipher_suite(s->tls);
+  cipher_id = rustls_quic_connection_get_negotiated_ciphersuite(s->tls);
   if (cipher_id == 0) {
     return NULL;
   }
@@ -876,11 +882,12 @@ int ngtcp2_crypto_set_local_transport_params(void *tls, const uint8_t *buf,
 
 int ngtcp2_crypto_set_remote_transport_params(ngtcp2_conn *conn, void *tls) {
   ngtcp2_crypto_rustls_session *s = tls;
-  const uint8_t *tp;
-  size_t tplen;
+  const uint8_t *tp = NULL;
+  size_t tplen = 0;
   int rv;
 
-  if (!rustls_quic_connection_peer_transport_parameters(s->tls, &tp, &tplen)) {
+  rustls_quic_connection_get_peer_transport_parameters(s->tls, &tp, &tplen);
+  if (tp == NULL) {
     return -1;
   }
   rv = ngtcp2_conn_decode_and_set_remote_transport_params(conn, tp, tplen);
@@ -899,10 +906,12 @@ static int install_keys(ngtcp2_conn *conn, ngtcp2_crypto_rustls_session *s) {
   size_t rxlen, txlen;
 
   if (!s->hs_installed &&
-      rustls_quic_connection_secret(s->tls, RUSTLS_QUIC_SECRET_SERVER_HANDSHAKE,
-                                    rx, sizeof(rx), &rxlen) &&
-      rustls_quic_connection_secret(s->tls, RUSTLS_QUIC_SECRET_CLIENT_HANDSHAKE,
-                                    tx, sizeof(tx), &txlen)) {
+      rustls_quic_connection_get_secret(
+        s->tls, RUSTLS_QUIC_SECRET_SERVER_HANDSHAKE, rx, sizeof(rx), &rxlen) ==
+        RUSTLS_RESULT_OK &&
+      rustls_quic_connection_get_secret(
+        s->tls, RUSTLS_QUIC_SECRET_CLIENT_HANDSHAKE, tx, sizeof(tx), &txlen) ==
+        RUSTLS_RESULT_OK) {
     if (ngtcp2_crypto_derive_and_install_rx_key(
           conn, NULL, NULL, NULL, NGTCP2_ENCRYPTION_LEVEL_HANDSHAKE, rx,
           rxlen) != 0 ||
@@ -915,9 +924,9 @@ static int install_keys(ngtcp2_conn *conn, ngtcp2_crypto_rustls_session *s) {
   }
 
   if (!s->app_rx_installed &&
-      rustls_quic_connection_secret(s->tls,
-                                    RUSTLS_QUIC_SECRET_SERVER_APPLICATION, rx,
-                                    sizeof(rx), &rxlen)) {
+      rustls_quic_connection_get_secret(
+        s->tls, RUSTLS_QUIC_SECRET_SERVER_APPLICATION, rx, sizeof(rx), &rxlen) ==
+        RUSTLS_RESULT_OK) {
     if (ngtcp2_crypto_derive_and_install_rx_key(
           conn, NULL, NULL, NULL, NGTCP2_ENCRYPTION_LEVEL_1RTT, rx, rxlen) !=
         0) {
@@ -957,9 +966,9 @@ static int flush_handshake(ngtcp2_conn *conn,
       if (!s->app_tx_installed) {
         uint8_t tx[64];
         size_t txlen;
-        if (!rustls_quic_connection_secret(
+        if (rustls_quic_connection_get_secret(
               s->tls, RUSTLS_QUIC_SECRET_CLIENT_APPLICATION, tx, sizeof(tx),
-              &txlen) ||
+              &txlen) != RUSTLS_RESULT_OK ||
             ngtcp2_crypto_derive_and_install_tx_key(
               conn, NULL, NULL, NULL, NGTCP2_ENCRYPTION_LEVEL_1RTT, tx,
               txlen) != 0) {
@@ -985,7 +994,7 @@ int ngtcp2_crypto_read_write_crypto_data(
   if (datalen > 0 &&
       rustls_quic_connection_read_hs(s->tls, data, datalen) !=
         RUSTLS_RESULT_OK) {
-    if (rustls_quic_connection_alert(s->tls, &alert)) {
+    if (rustls_quic_connection_get_alert(s->tls, &alert) == RUSTLS_RESULT_OK) {
       ngtcp2_conn_set_tls_alert(conn, alert);
     }
     return -1;

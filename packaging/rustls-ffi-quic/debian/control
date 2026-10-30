@@ -18,6 +18,8 @@ Architecture: any
 Multi-Arch: same
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+# the helper before 1.16.0-1~smallgearlab3 calls functions that are named differently in 0.15.7+quic3
+Breaks: libngtcp2-crypto-rustls0 (<< 1.16.0-1~smallgearlab3),
 Description: C bindings for the Rustls TLS library, with a QUIC API
  rustls-ffi-quic is rustls-ffi, the C bindings of Rustls, with a C API over
  rustls::quic added, so that a QUIC stack (ngtcp2, for curl's HTTP/3) can use

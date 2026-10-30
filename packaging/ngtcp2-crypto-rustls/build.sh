@@ -9,6 +9,10 @@
 #   sgl-reprepro includedeb resolute-testing ~/.cache/ngtcp2-crypto-rustls-dl/deb/build/*_<version>-*.deb
 # The build needs librustls-quic-dev and libngtcp2-dev installed (see Build-Depends): for the first one, add the
 # repository's resolute-testing suite or install the deb by hand.
+# SGL_RUSTLS_QUIC_PREFIX=<dir> builds against the dev files of librustls-quic that are only unpacked there (a prefix with
+# usr/ of both debs, the prefix= of rustls-quic.pc pointing at it) and not installed: needed when the new librustls-quic
+# Breaks the installed helper, which installing it would take out together with what depends on it (curl). The
+# dependency check of dpkg-buildpackage is skipped then (-d), so the Depends of debian/control must name the version.
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -46,7 +50,12 @@ build)
     cp "$here"/src/* "$work/crypto/rustls/"
     rsync -a "$here/debian/" "$work/debian/"
     cd "$work"
-    build_env DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -us -uc -b
+    if [ -n "${SGL_RUSTLS_QUIC_PREFIX:-}" ]; then
+        build_env PKG_CONFIG_PATH="$SGL_RUSTLS_QUIC_PREFIX/usr/lib/x86_64-linux-gnu/pkgconfig" \
+            DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -us -uc -b -d
+    else
+        build_env DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" dpkg-buildpackage -us -uc -b
+    fi
     echo "debs are in $bd"
     ;;
 *)

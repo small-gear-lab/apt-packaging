@@ -36,7 +36,7 @@ override_dh_strip:
 
 # The soname carries the whole version, so any build of this package has the same ABI.
 override_dh_makeshlibs:
-	dh_makeshlibs -V 'librustls-quic@SOVER@ (>= @SOVER@+quic2)'
+	dh_makeshlibs -V 'librustls-quic@SOVER@ (>= @SOVER@+quic3)'
 
 override_dh_auto_clean:
 	rm -rf target debian/cargo-home

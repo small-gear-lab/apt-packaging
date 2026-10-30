@@ -19,7 +19,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 cmd=${1:-}
 # the upstream version of rustls-ffi this is based on (its soname), and the version of this source
 version=0.15.7
-srcversion=$version+quic2
+srcversion=$version+quic3
 repo=${RUSTLS_FFI_QUIC_REPO:-$HOME/work/small-gear-lab/rustls-ffi-quic}
 dl=$HOME/.cache/rustls-ffi-quic-dl
 orig=$dl/orig/rustls-ffi-quic_$srcversion.orig.tar.xz

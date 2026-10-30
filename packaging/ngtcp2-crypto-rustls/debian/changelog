@@ -1,3 +1,13 @@
+ngtcp2-crypto-rustls (1.16.0-1~smallgearlab3) resolute; urgency=medium
+
+  * Follows the QUIC API of librustls-quic 0.15.7+quic3 (rustls_quic_connection_
+    get_secret, get_alert, get_negotiated_ciphersuite, get_peer_certificate,
+    get_peer_transport_parameters). Build-Depends and the dependency of the
+    library name that version; librustls-quic Breaks the helper before this one.
+    The functions of this library are the same.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sat, 31 Oct 2026 01:10:00 +0900
+
 ngtcp2-crypto-rustls (1.16.0-1~smallgearlab2) resolute; urgency=medium
 
   * New function ngtcp2_crypto_rustls_session_peer_certificate: the DER of the
