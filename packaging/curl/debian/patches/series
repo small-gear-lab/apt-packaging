@@ -1,2 +1,3 @@
 build-Divide-mit-krb5-gssapi-link-flags-between-LDFLAGS-a.patch
 11_omit-directories-from-config.patch
+rustls-http3-ngtcp2-quic.patch

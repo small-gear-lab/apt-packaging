@@ -1,3 +1,35 @@
+curl (8.23.0-1~smallgearlab4) resolute; urgency=medium
+
+  * The metapackage libcurl4t64 provides libcurl4 (= its version), as the
+    libcurl4t64 of Ubuntu does: packages such as sublime-merge depend on
+    "libcurl3 | libcurl4", and without it an upgrade would have removed them.
+    (Found with apt-get -s before anything was installed.)
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 21:00:00 +0900
+
+curl (8.23.0-1~smallgearlab3) resolute; urgency=medium
+
+  * A second flavour, with Rustls as the TLS library (Encrypted Client
+    Hello, HTTP/3 through ngtcp2). It comes from the new packages
+    librustls-quic (rustls-ffi with a QUIC API) and libngtcp2-crypto-rustls
+    (the ngtcp2 crypto helper for it), which Build-Depends now lists.
+    - New patch rustls-http3-ngtcp2-quic.patch.
+    - The Rustls flavour has no NTLM, no --pinnedpubkey and no --capath, and
+      none of the OpenSSL-only options (--enable-proxy-http3,
+      --with-ca-fallback). It exports the symbols of the OpenSSL flavour
+      (--enable-versioned-symbols=OPENSSL_), so it can replace it.
+  * curl and libcurl4t64 are metapackages now; the flavours are the real
+    packages: curl-openssl and curl-rustls, libcurl4t64-openssl and
+    libcurl4t64-rustls (each pair conflicts), libcurl4-openssl-dev and
+    libcurl4-rustls-dev. The shlibs of libcurl.so.4 (a file of each
+    flavour) name libcurl4t64, so the packages that use libcurl keep
+    depending on it. The two lintian warnings about that
+      are overridden, with the reason.
+    - libcurl4t64.symbols is kept as libcurl.symbols.openssl-reference:
+      the flavours have no symbols file of their own.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 20:00:00 +0900
+
 curl (8.23.0-1~smallgearlab2) resolute; urgency=medium
 
   * debian/copyright: bring Ubuntu's 8.18.0 copyright up to 8.23.0,

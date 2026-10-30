@@ -1,0 +1,4 @@
+# This library package is a flavour: the package that other packages depend on is the metapackage libcurl4t64,
+# and the shlibs of libcurl.so.4 name it, so that switching the flavour does not touch them.
+libcurl4t64-openssl: distant-prerequisite-in-shlibs * [shlibs]
+libcurl4t64-openssl: package-name-doesnt-match-sonames libcurl4

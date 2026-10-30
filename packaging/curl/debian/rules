@@ -24,12 +24,20 @@ CONFIGURE_ARGS = -- --disable-dependency-tracking		\
 
 # Experimental features, enabled here (Debian enables them only in experimental).
 CONFIGURE_ARGS += --enable-httpsrr \
-                  --enable-ssls-export \
-                  --enable-proxy-http3
+                  --enable-ssls-export
 
-# Everything else upstream still offers: SCRAM via libgsasl, NTLM (opt-in since 8.20.0), and
-# OpenSSL's built-in CA store as a fallback. ECH needs an OpenSSL that has it (3.5 does not).
-CONFIGURE_ARGS += --with-libgsasl --enable-ntlm --with-ca-fallback
+# Everything else upstream still offers: SCRAM via libgsasl.
+CONFIGURE_ARGS += --with-libgsasl
+
+# What only the OpenSSL flavour has: HTTP/3 through a proxy, NTLM (opt-in since 8.20.0), and OpenSSL's
+# built-in CA store as a fallback. ECH needs an OpenSSL that has it (3.5 does not).
+CONFIGURE_ARGS_openssl = --enable-proxy-http3 --enable-ntlm --with-ca-fallback
+
+# The Rustls flavour: Encrypted Client Hello, and HTTP/3 through rustls-ffi-quic. NTLM needs DES from the TLS
+# library, pinning and --capath need support that Rustls does not have, the others are OpenSSL's. It exports
+# the symbols of the OpenSSL flavour (CURL_OPENSSL_4), so that it replaces that one for the programs that use
+# libcurl.so.4.
+CONFIGURE_ARGS_rustls = --enable-ech --enable-versioned-symbols=OPENSSL_
 
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
   NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -48,7 +56,8 @@ ifneq ($(filter pkg.curl.gnutls-only,$(DEB_BUILD_PROFILES)),)
 endif
 
 with_openssl := $(if $(filter pkg.curl.no-openssl,$(DEB_BUILD_PROFILES)),no,yes)
-# small-gear-lab: only the OpenSSL flavour is built (HTTP/3 needs OpenSSL >= 3.5 with ngtcp2).
+# small-gear-lab: the flavours are OpenSSL (HTTP/3 needs OpenSSL >= 3.5 with ngtcp2) and Rustls; no GnuTLS.
+with_rustls := $(if $(filter pkg.curl.no-rustls,$(DEB_BUILD_PROFILES)),no,yes)
 with_gnutls := no
 
 # Enable debug support when the debug profile is active.
@@ -62,7 +71,7 @@ endif
 
 # Run configure for a specific curl flavour.
 #
-# First argument is the flavour name (openssl or gnutls).
+# First argument is the flavour name (openssl, rustls or gnutls).
 # Second argument is extra configure parameters (if any).
 define configure-curl
 mkdir -p debian/build-$(1)
@@ -79,7 +88,10 @@ endef
 
 override_dh_auto_configure:
 ifeq ($(with_openssl),yes)
-	$(call configure-curl,openssl)
+	$(call configure-curl,openssl,$(CONFIGURE_ARGS_openssl))
+endif
+ifeq ($(with_rustls),yes)
+	$(call configure-curl,rustls,$(CONFIGURE_ARGS_rustls))
 endif
 ifeq ($(with_gnutls),yes)
 	$(call configure-curl,gnutls)
@@ -95,6 +107,9 @@ endef
 override_dh_auto_build:
 ifeq ($(with_openssl),yes)
 	$(call build-curl,openssl)
+endif
+ifeq ($(with_rustls),yes)
+	$(call build-curl,rustls)
 endif
 ifeq ($(with_gnutls),yes)
 	$(call build-curl,gnutls)
@@ -131,6 +146,9 @@ ifeq ($(filter nocheck,$(DEB_BUILD_PROFILES)),)
 ifeq ($(with_openssl),yes)
 	$(call test-curl,openssl)
 endif
+ifeq ($(with_rustls),yes)
+	$(call test-curl,rustls)
+endif
 ifeq ($(with_gnutls),yes)
 	$(call test-curl,gnutls)
 endif
@@ -150,7 +168,10 @@ endef
 
 override_dh_install:
 ifeq ($(with_openssl),yes)
-	$(call install-curl,openssl,tmp,-plibcurl4t64 -plibcurl4-openssl-dev -plibcurl4-doc -pcurl)
+	$(call install-curl,openssl,tmp,-plibcurl4t64-openssl -plibcurl4-openssl-dev -plibcurl4-doc -pcurl-openssl)
+endif
+ifeq ($(with_rustls),yes)
+	$(call install-curl,rustls,tmp-rustls,-plibcurl4t64-rustls -plibcurl4-rustls-dev -pcurl-rustls)
 endif
 ifeq ($(with_gnutls),yes)
 	$(call install-curl,gnutls,tmp-gnutls,-plibcurl3t64-gnutls -plibcurl4-gnutls-dev)

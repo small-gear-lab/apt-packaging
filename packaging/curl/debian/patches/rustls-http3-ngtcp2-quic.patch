@@ -1,0 +1,568 @@
+Description: HTTP/3 over Rustls, through ngtcp2 and the rustls-ffi-quic library
+ Lets --with-rustls --with-ngtcp2 --with-nghttp3 build, with a TLS backend that
+ is not OpenSSL, GnuTLS or wolfSSL:
+ - lib/vtls/rustls.c: the client config is built by cr_build_config(), which
+   takes the ALPN list and the origin instead of reading them from the TLS
+   connection filter, so that the QUIC filter can build it too;
+   Curl_rustls_quic_ctx_init() and _free() are the QUIC side of it.
+ - lib/vquic/: the Rustls branch of vquic-tls.[ch] and cf-ngtcp2*.[ch]. The
+   TLS session is the one of ngtcp2_crypto_rustls (libngtcp2_crypto_rustls).
+ - configure: the pkg-config module rustls-quic (rustls-ffi-quic, whose
+   functions are named rustlsq_*) is used when it is there and rustls-ffi
+   otherwise; with rustls-quic, QUIC is on, and the ngtcp2 crypto helper
+   libngtcp2_crypto_rustls is looked up like the ones for the other backends.
+ Against plain rustls-ffi nothing changes: no QUIC, the same functions called.
+Author: Marie <289302950+marie-222@users.noreply.github.com>
+Forwarded: no
+Last-Update: 2026-10-30
+---
+diff --git a/configure.ac b/configure.ac
+index 49886c5..76866d9 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -3640,6 +3640,63 @@ if test "$USE_NGTCP2" = "1" && test "$WOLFSSL_ENABLED" = "1"; then
+   fi
+ fi
+ 
++if test "$USE_NGTCP2" = "1" && test "$RUSTLS_ENABLED" = "1"; then
++  dnl backup the pre-ngtcp2_crypto_rustls variables
++  CLEANLDFLAGS="$LDFLAGS"
++  CLEANLDFLAGSPC="$LDFLAGSPC"
++  CLEANCPPFLAGS="$CPPFLAGS"
++  CLEANLIBS="$LIBS"
++
++  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_rustls, $want_tcp2_path, 1)
++
++  if test "$PKGCONFIG" != "no"; then
++    LIB_NGTCP2_CRYPTO_RUSTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
++      $PKGCONFIG --libs-only-l libngtcp2_crypto_rustls`
++    AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_RUSTLS])
++
++    CPP_NGTCP2_CRYPTO_RUSTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
++      $PKGCONFIG --cflags-only-I libngtcp2_crypto_rustls`
++    AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_RUSTLS])
++
++    LD_NGTCP2_CRYPTO_RUSTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
++      $PKGCONFIG --libs-only-L libngtcp2_crypto_rustls`
++    AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_RUSTLS])
++
++    LDFLAGS="$LDFLAGS $LD_NGTCP2_CRYPTO_RUSTLS"
++    LDFLAGSPC="$LDFLAGSPC $LD_NGTCP2_CRYPTO_RUSTLS"
++    CPPFLAGS="$CPPFLAGS $CPP_NGTCP2_CRYPTO_RUSTLS"
++    LIBS="$LIB_NGTCP2_CRYPTO_RUSTLS $LIBS"
++
++    if test "$cross_compiling" != "yes"; then
++      DIR_NGTCP2_CRYPTO_RUSTLS=`echo $LD_NGTCP2_CRYPTO_RUSTLS | $SED -e 's/^-L//'`
++    fi
++    AC_CHECK_LIB(ngtcp2_crypto_rustls, ngtcp2_crypto_recv_client_initial_cb,
++      [
++        AC_CHECK_HEADERS(ngtcp2/ngtcp2_crypto.h,
++          USE_NGTCP2=1
++          CURL_LIBRARY_PATH="$CURL_LIBRARY_PATH:$DIR_NGTCP2_CRYPTO_RUSTLS"
++          export CURL_LIBRARY_PATH
++          AC_MSG_NOTICE([Added $DIR_NGTCP2_CRYPTO_RUSTLS to CURL_LIBRARY_PATH])
++          LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE libngtcp2_crypto_rustls"
++        )
++      ],
++        dnl not found, revert back to clean variables
++        LDFLAGS=$CLEANLDFLAGS
++        LDFLAGSPC=$CLEANLDFLAGSPC
++        CPPFLAGS=$CLEANCPPFLAGS
++        LIBS=$CLEANLIBS
++    )
++
++  else
++    dnl no ngtcp2_crypto_rustls pkg-config found, deal with it
++    if test "$want_tcp2" != "default"; then
++      dnl To avoid link errors, we do not allow --with-ngtcp2 without
++      dnl a pkgconfig file
++      AC_MSG_ERROR([--with-ngtcp2 was specified but could not find ngtcp2_crypto_rustls pkg-config file.])
++    fi
++  fi
++fi
++
+ dnl **********************************************************************
+ dnl Check for nghttp3 (HTTP/3 with ngtcp2)
+ dnl **********************************************************************
+diff --git a/lib/vquic/cf-ngtcp2-cmn.c b/lib/vquic/cf-ngtcp2-cmn.c
+index 12a4d2b..2f27db8 100644
+--- a/lib/vquic/cf-ngtcp2-cmn.c
++++ b/lib/vquic/cf-ngtcp2-cmn.c
+@@ -43,6 +43,9 @@
+ #elif defined(USE_WOLFSSL)
+ #include <ngtcp2/ngtcp2_crypto_wolfssl.h>
+ #include "vtls/wolfssl.h"
++#elif defined(USE_RUSTLS)
++#include <ngtcp2/ngtcp2_crypto_rustls.h>
++#include "vtls/rustls.h"
+ #endif
+ 
+ #include <nghttp3/nghttp3.h>
+@@ -1105,6 +1108,15 @@ static CURLcode cf_connect_start(struct Curl_cfilter *cf,
+   ngtcp2_conn_set_tls_native_handle(ctx->qconn, ctx->tls.gtls.session);
+ #elif defined(USE_WOLFSSL)
+   ngtcp2_conn_set_tls_native_handle(ctx->qconn, ctx->tls.wssl.ssl);
++#elif defined(USE_RUSTLS)
++  ctx->tls.rustls.session = ngtcp2_crypto_rustls_session_new(
++    ctx->tls.rustls.config, &ctx->conn_ref, ctx->tls.rustls.hostname,
++    ctx->tls.rustls.alpn, ctx->tls.rustls.alpnlen);
++  if(!ctx->tls.rustls.session) {
++    failf(data, "ngtcp2_crypto_rustls_session_new failed");
++    return CURLE_OUT_OF_MEMORY;
++  }
++  ngtcp2_conn_set_tls_native_handle(ctx->qconn, ctx->tls.rustls.session);
+ #else
+ #error "ngtcp2 TLS backend not defined"
+ #endif
+diff --git a/lib/vquic/cf-ngtcp2-cmn.h b/lib/vquic/cf-ngtcp2-cmn.h
+index 2ead50e..cce6f95 100644
+--- a/lib/vquic/cf-ngtcp2-cmn.h
++++ b/lib/vquic/cf-ngtcp2-cmn.h
+@@ -49,6 +49,9 @@
+ #include <wolfssl/quic.h>
+ #include <ngtcp2/ngtcp2_crypto_wolfssl.h>
+ #include "vtls/wolfssl.h"
++#elif defined(USE_RUSTLS)
++#include <ngtcp2/ngtcp2_crypto_rustls.h>
++#include "vtls/rustls.h"
+ #endif
+ 
+ #ifdef HAVE_NETINET_UDP_H
+diff --git a/lib/vquic/cf-ngtcp2.h b/lib/vquic/cf-ngtcp2.h
+index 0ea7933..bc444ed 100644
+--- a/lib/vquic/cf-ngtcp2.h
++++ b/lib/vquic/cf-ngtcp2.h
+@@ -42,6 +42,8 @@
+ #include <wolfssl/options.h>
+ #include <wolfssl/ssl.h>
+ #include <wolfssl/quic.h>
++#elif defined(USE_RUSTLS)
++#include <ngtcp2/ngtcp2_crypto_rustls.h>
+ #endif
+ 
+ struct Curl_cfilter;
+diff --git a/lib/vquic/vquic-tls.c b/lib/vquic/vquic-tls.c
+index 99c0553..1591f80 100644
+--- a/lib/vquic/vquic-tls.c
++++ b/lib/vquic/vquic-tls.c
+@@ -24,7 +24,8 @@
+ #include "curl_setup.h"
+ 
+ #if defined(USE_HTTP3) && \
+-  (defined(USE_OPENSSL) || defined(USE_GNUTLS) || defined(USE_WOLFSSL))
++  (defined(USE_OPENSSL) || defined(USE_GNUTLS) || defined(USE_WOLFSSL) || \
++   defined(USE_RUSTLS))
+ 
+ #ifdef USE_OPENSSL
+ #include <openssl/err.h>
+@@ -41,6 +42,9 @@
+ #include <wolfssl/ssl.h>
+ #include <wolfssl/quic.h>
+ #include "vtls/wolfssl.h"
++#elif defined(USE_RUSTLS)
++#include <ngtcp2/ngtcp2_crypto_rustls.h>
++#include "vtls/rustls.h"
+ #endif
+ 
+ #include "urldata.h"
+@@ -62,6 +66,8 @@ CURLcode Curl_vquic_tls_peer_init(struct Curl_peer *origin,
+   Curl_gtls_version(tls_id, sizeof(tls_id));
+ #elif defined(USE_WOLFSSL)
+   Curl_wssl_version(tls_id, sizeof(tls_id));
++#elif defined(USE_RUSTLS)
++  Curl_rustls_version(tls_id, sizeof(tls_id));
+ #else
+ #error "no TLS lib in used, should not happen"
+   return CURLE_FAILED_INIT;
+@@ -93,6 +99,12 @@ CURLcode Curl_vquic_tls_init(struct curl_tls_ctx *ctx,
+   return Curl_wssl_ctx_init(&ctx->wssl, cf, data, ssl_peer, alpns,
+                             cb_setup, cb_user_data,
+                             ssl_user_data, session_reuse_cb);
++#elif defined(USE_RUSTLS)
++  (void)cb_setup;
++  (void)cb_user_data;
++  (void)ssl_user_data;
++  (void)session_reuse_cb;
++  return Curl_rustls_quic_ctx_init(&ctx->rustls, cf, data, ssl_peer, alpns);
+ #else
+ #error "no TLS lib in used, should not happen"
+   return CURLE_FAILED_INIT;
+@@ -115,6 +127,9 @@ void Curl_vquic_tls_cleanup(struct curl_tls_ctx *ctx)
+     wolfSSL_free(ctx->wssl.ssl);
+   if(ctx->wssl.ssl_ctx)
+     wolfSSL_CTX_free(ctx->wssl.ssl_ctx);
++#elif defined(USE_RUSTLS)
++  ngtcp2_crypto_rustls_session_free(ctx->rustls.session);
++  Curl_rustls_quic_ctx_free(&ctx->rustls);
+ #endif
+   memset(ctx, 0, sizeof(*ctx));
+ }
+diff --git a/lib/vquic/vquic-tls.h b/lib/vquic/vquic-tls.h
+index 0e7f34d..42ff896 100644
+--- a/lib/vquic/vquic-tls.h
++++ b/lib/vquic/vquic-tls.h
+@@ -26,7 +26,8 @@
+ #include "curl_setup.h"
+ 
+ #if defined(USE_HTTP3) && \
+-  (defined(USE_OPENSSL) || defined(USE_GNUTLS) || defined(USE_WOLFSSL))
++  (defined(USE_OPENSSL) || defined(USE_GNUTLS) || defined(USE_WOLFSSL) || \
++   defined(USE_RUSTLS))
+ 
+ #include "bufq.h"
+ #include "vtls/vtls.h"
+@@ -34,6 +35,7 @@
+ 
+ #include "vtls/openssl.h"
+ #include "vtls/wolfssl.h"
++#include "vtls/rustls.h"
+ 
+ struct ssl_peer;
+ struct Curl_ssl_session;
+@@ -46,6 +48,8 @@ struct curl_tls_ctx {
+   struct gtls_ctx gtls;
+ #elif defined(USE_WOLFSSL)
+   struct wssl_ctx wssl;
++#elif defined(USE_RUSTLS)
++  struct rustls_quic_ctx rustls;
+ #endif
+ };
+ 
+diff --git a/lib/vtls/rustls.c b/lib/vtls/rustls.c
+index 72edac9..3c84ffd 100644
+--- a/lib/vtls/rustls.c
++++ b/lib/vtls/rustls.c
+@@ -663,20 +663,20 @@ cleanup:
+ 
+ static void
+ init_config_builder_alpn(struct Curl_easy *data,
+-                         const struct ssl_connect_data *connssl,
++                         const struct alpn_spec *spec,
+                          struct rustls_client_config_builder *config_builder)
+ {
+   struct alpn_proto_buf proto;
+   rustls_slice_bytes alpn[ALPN_ENTRIES_MAX];
+   size_t i;
+ 
+-  for(i = 0; i < connssl->alpn->count; ++i) {
+-    alpn[i].data = (const uint8_t *)connssl->alpn->entries[i];
+-    alpn[i].len = strlen(connssl->alpn->entries[i]);
++  for(i = 0; i < spec->count; ++i) {
++    alpn[i].data = (const uint8_t *)spec->entries[i];
++    alpn[i].len = strlen(spec->entries[i]);
+   }
+   rustls_client_config_builder_set_alpn_protocols(config_builder, alpn,
+-                                                  connssl->alpn->count);
+-  Curl_alpn_to_proto_str(&proto, connssl->alpn);
++                                                  spec->count);
++  Curl_alpn_to_proto_str(&proto, spec);
+   infof(data, VTLS_INFOF_ALPN_OFFER_1STR, proto.data);
+ }
+ 
+@@ -957,6 +957,7 @@ cleanup:
+ static CURLcode
+ init_config_builder_ech(struct Curl_easy *data,
+                         struct Curl_cfilter *cf,
++                        const struct Curl_peer *origin,
+                         struct rustls_client_config_builder *builder)
+ {
+   struct ssl_filter_config *conn_config = Curl_ssl_cf_get_filter_config(cf);
+@@ -1008,11 +1009,10 @@ init_config_builder_ech(struct Curl_easy *data,
+     }
+   }
+   else {
+-    const struct ssl_connect_data *connssl = cf->ctx;
+     const struct Curl_https_rrinfo *rinfo =
+-      Curl_conn_dns_get_https(data, cf->sockindex, connssl->peer.origin);
++      Curl_conn_dns_get_https(data, cf->sockindex, origin);
+ 
+-    if(!Curl_httpsrr_is_for_peer(connssl->peer.origin, rinfo) ||
++    if(!Curl_httpsrr_is_for_peer(origin, rinfo) ||
+        !rinfo->echconfiglist) {
+       failf(data, "rustls: ECH requested but no ECHConfig available");
+       result = CURLE_SSL_CONNECT_ERROR;
+@@ -1043,14 +1043,17 @@ cleanup:
+ }
+ #endif /* USE_ECH */
+ 
+-static CURLcode cr_init_backend(struct Curl_cfilter *cf,
++/* Build the client config for a connection, as set up by the user, for the
++ * ALPN protocols `alpn` (may be NULL) and the host `origin`. Used for the TLS
++ * connections and for QUIC. */
++static CURLcode cr_build_config(struct Curl_cfilter *cf,
+                                 struct Curl_easy *data,
+-                                struct rustls_ssl_backend_data * const backend)
++                                const struct alpn_spec *alpn,
++                                const struct Curl_peer *origin,
++                                const struct rustls_client_config **pconfig)
+ {
+-  const struct ssl_connect_data *connssl = cf->ctx;
+   const struct ssl_filter_config *conn_config =
+     Curl_ssl_cf_get_filter_config(cf);
+-  struct rustls_connection *rconn = NULL;
+   struct rustls_client_config_builder *config_builder = NULL;
+ 
+   const struct curl_blob *ca_info_blob = conn_config->ca_info_blob;
+@@ -1060,16 +1063,14 @@ static CURLcode cr_init_backend(struct Curl_cfilter *cf,
+   CURLcode result = CURLE_OK;
+   rustls_result rr;
+ 
+-  DEBUGASSERT(backend);
+-  rconn = backend->conn;
+-
++  (void)origin; /* used for ECH only */
+   result = init_config_builder(cf, data, conn_config, &config_builder);
+   if(result != CURLE_OK) {
+     return result;
+   }
+ 
+-  if(connssl->alpn) {
+-    init_config_builder_alpn(data, connssl, config_builder);
++  if(alpn) {
++    init_config_builder_alpn(data, alpn, config_builder);
+   }
+ 
+   if(!conn_config->verifypeer) {
+@@ -1114,7 +1115,7 @@ static CURLcode cr_init_backend(struct Curl_cfilter *cf,
+ 
+ #ifdef USE_ECH
+   if(Curl_ssl_ech_enabled(cf)) {
+-    result = init_config_builder_ech(data, cf, config_builder);
++    result = init_config_builder_ech(data, cf, origin, config_builder);
+     if((result != CURLE_OK) && (conn_config->ech == CURLECH_HARD)) {
+       rustls_client_config_builder_free(config_builder);
+       return result;
+@@ -1128,11 +1129,30 @@ static CURLcode cr_init_backend(struct Curl_cfilter *cf,
+     return result;
+   }
+ 
+-  rr = rustls_client_config_builder_build(config_builder, &backend->config);
++  rr = rustls_client_config_builder_build(config_builder, pconfig);
+   if(rr != RUSTLS_RESULT_OK) {
+     rustls_failf(data, rr, "failed to build client config");
+     return CURLE_SSL_CONNECT_ERROR;
+   }
++  return CURLE_OK;
++}
++
++static CURLcode cr_init_backend(struct Curl_cfilter *cf,
++                                struct Curl_easy *data,
++                                struct rustls_ssl_backend_data * const backend)
++{
++  const struct ssl_connect_data *connssl = cf->ctx;
++  struct rustls_connection *rconn = NULL;
++  CURLcode result;
++  rustls_result rr;
++
++  DEBUGASSERT(backend);
++  rconn = backend->conn;
++
++  result = cr_build_config(cf, data, connssl->alpn, connssl->peer.origin,
++                           &backend->config);
++  if(result)
++    return result;
+ 
+   DEBUGASSERT(!rconn);
+   rr = rustls_client_connection_new(backend->config,
+@@ -1435,12 +1455,60 @@ static void cr_close(struct Curl_cfilter *cf, struct Curl_easy *data)
+   }
+ }
+ 
+-static size_t cr_version(char *buffer, size_t size)
++size_t Curl_rustls_version(char *buffer, size_t size)
+ {
+   const struct rustls_str ver = rustls_version();
+   return curl_msnprintf(buffer, size, "%.*s", (int)ver.len, ver.data);
+ }
+ 
++static size_t cr_version(char *buffer, size_t size)
++{
++  return Curl_rustls_version(buffer, size);
++}
++
++#ifdef USE_HTTP3
++CURLcode Curl_rustls_quic_ctx_init(struct rustls_quic_ctx *ctx,
++                                   struct Curl_cfilter *cf,
++                                   struct Curl_easy *data,
++                                   struct ssl_peer *peer,
++                                   const struct alpn_spec *alpns)
++{
++  CURLcode result;
++  size_t i;
++
++  memset(ctx, 0, sizeof(*ctx));
++  result = cr_build_config(cf, data, alpns, peer->origin, &ctx->config);
++  if(result)
++    return result;
++
++  ctx->hostname = curlx_strdup(peer->origin->hostname);
++  if(!ctx->hostname) {
++    Curl_rustls_quic_ctx_free(ctx);
++    return CURLE_OUT_OF_MEMORY;
++  }
++  /* the ALPN list in wire format, as the ngtcp2 helper takes it */
++  for(i = 0; alpns && i < alpns->count; ++i) {
++    size_t len = strlen(alpns->entries[i]);
++    if(len > 255 || ctx->alpnlen + 1 + len > sizeof(ctx->alpn)) {
++      Curl_rustls_quic_ctx_free(ctx);
++      return CURLE_FAILED_INIT;
++    }
++    ctx->alpn[ctx->alpnlen++] = (unsigned char)len;
++    memcpy(ctx->alpn + ctx->alpnlen, alpns->entries[i], len);
++    ctx->alpnlen += len;
++  }
++  return CURLE_OK;
++}
++
++void Curl_rustls_quic_ctx_free(struct rustls_quic_ctx *ctx)
++{
++  if(ctx->config)
++    rustls_client_config_free(ctx->config);
++  curlx_free(ctx->hostname);
++  memset(ctx, 0, sizeof(*ctx));
++}
++#endif /* USE_HTTP3 */
++
+ static CURLcode cr_random(struct Curl_easy *data, unsigned char *entropy,
+                           size_t length)
+ {
+diff --git a/lib/vtls/rustls.h b/lib/vtls/rustls.h
+index b6ddbd1..57d6383 100644
+--- a/lib/vtls/rustls.h
++++ b/lib/vtls/rustls.h
+@@ -29,5 +29,34 @@
+ 
+ extern const struct Curl_ssl Curl_ssl_rustls;
+ 
++size_t Curl_rustls_version(char *buffer, size_t size);
++
++#ifdef USE_HTTP3
++struct Curl_cfilter;
++struct Curl_easy;
++struct ssl_peer;
++struct alpn_spec;
++struct rustls_client_config;
++
++/* What QUIC needs of the TLS side: the client config, and what the ngtcp2
++ * helper wants to build the session (the server name, the ALPN list as
++ * length-prefixed protocol ids). `session` is a
++ * ngtcp2_crypto_rustls_session, made once the ngtcp2 connection exists. */
++struct rustls_quic_ctx {
++  const struct rustls_client_config *config;
++  char *hostname;
++  unsigned char alpn[256];
++  size_t alpnlen;
++  void *session;
++};
++
++CURLcode Curl_rustls_quic_ctx_init(struct rustls_quic_ctx *ctx,
++                                   struct Curl_cfilter *cf,
++                                   struct Curl_easy *data,
++                                   struct ssl_peer *peer,
++                                   const struct alpn_spec *alpns);
++void Curl_rustls_quic_ctx_free(struct rustls_quic_ctx *ctx);
++#endif /* USE_HTTP3 */
++
+ #endif /* USE_RUSTLS */
+ #endif /* HEADER_CURL_RUSTLS_H */
+diff --git a/m4/curl-rustls.m4 b/m4/curl-rustls.m4
+index 86bed3c..d14c29b 100644
+--- a/m4/curl-rustls.m4
++++ b/m4/curl-rustls.m4
+@@ -56,7 +56,7 @@ if test "x$OPT_RUSTLS" != "xno"; then
+       dnl the user told us to look
+ 
+       RUSTLS_PCDIR="$PREFIX_RUSTLS/lib/pkgconfig"
+-      if test -f "$RUSTLS_PCDIR/rustls.pc"; then
++      if test -f "$RUSTLS_PCDIR/rustls-quic.pc" || test -f "$RUSTLS_PCDIR/rustls.pc"; then
+         AC_MSG_NOTICE([PKG_CONFIG_LIBDIR is set to "$RUSTLS_PCDIR"])
+         PKGTEST="yes"
+       fi
+@@ -64,7 +64,7 @@ if test "x$OPT_RUSTLS" != "xno"; then
+       if test "$PKGTEST" != "yes"; then
+         dnl try lib64 instead
+         RUSTLS_PCDIR="$PREFIX_RUSTLS/lib64/pkgconfig"
+-        if test -f "$RUSTLS_PCDIR/rustls.pc"; then
++        if test -f "$RUSTLS_PCDIR/rustls-quic.pc" || test -f "$RUSTLS_PCDIR/rustls.pc"; then
+           AC_MSG_NOTICE([PKG_CONFIG_LIBDIR is set to "$RUSTLS_PCDIR"])
+           PKGTEST="yes"
+         fi
+@@ -106,17 +106,25 @@ if test "x$OPT_RUSTLS" != "xno"; then
+ 
+   if test "$PKGTEST" = "yes"; then
+ 
+-    CURL_CHECK_PKGCONFIG(rustls, [$RUSTLS_PCDIR])
++    dnl rustls-ffi-quic (a QUIC API, and function names of its own) is used when
++    dnl it is there, rustls-ffi otherwise
++    RUSTLS_MODULE=rustls-quic
++    CURL_CHECK_PKGCONFIG(rustls-quic, [$RUSTLS_PCDIR])
++    if test "$PKGCONFIG" = "no"; then
++      RUSTLS_MODULE=rustls
++      CURL_CHECK_PKGCONFIG(rustls, [$RUSTLS_PCDIR])
++    fi
+ 
+     if test "$PKGCONFIG" != "no"; then
++      AC_MSG_NOTICE([pkg-config: using the $RUSTLS_MODULE module])
+       SSL_LIBS=`CURL_EXPORT_PCDIR([$RUSTLS_PCDIR])
+-        $PKGCONFIG --libs-only-l --libs-only-other rustls 2>/dev/null`
++        $PKGCONFIG --libs-only-l --libs-only-other $RUSTLS_MODULE 2>/dev/null`
+ 
+       SSL_LDFLAGS=`CURL_EXPORT_PCDIR([$RUSTLS_PCDIR])
+-        $PKGCONFIG --libs-only-L rustls 2>/dev/null`
++        $PKGCONFIG --libs-only-L $RUSTLS_MODULE 2>/dev/null`
+ 
+       SSL_CPPFLAGS=`CURL_EXPORT_PCDIR([$RUSTLS_PCDIR])
+-        $PKGCONFIG --cflags-only-I rustls 2>/dev/null`
++        $PKGCONFIG --cflags-only-I $RUSTLS_MODULE 2>/dev/null`
+ 
+       AC_MSG_NOTICE([pkg-config: SSL_LIBS: "$SSL_LIBS"])
+       AC_MSG_NOTICE([pkg-config: SSL_LDFLAGS: "$SSL_LDFLAGS"])
+@@ -168,19 +176,37 @@ if test "x$OPT_RUSTLS" != "xno"; then
+       fi
+     fi
+     if test -n "$link_pkgconfig"; then
+-      LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE rustls"
++      LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE ${RUSTLS_MODULE:-rustls}"
+     fi
+ 
+-    AC_CHECK_LIB(rustls, rustls_supported_hpke,
+-        [
+-        AC_DEFINE(USE_RUSTLS, 1, [if Rustls is enabled])
+-        RUSTLS_ENABLED=1
+-        USE_RUSTLS="yes"
+-        ssl_msg="Rustls"
+-        test "rustls" != "$DEFAULT_SSL_BACKEND" || VALID_DEFAULT_SSL_BACKEND=yes
+-        ],
+-        AC_MSG_ERROR([--with-rustls was specified but could not find compatible Rustls.]),
+-        $RUSTLS_LDFLAGS)
++    if test "$RUSTLS_MODULE" = "rustls-quic"; then
++      dnl the functions of rustls-ffi-quic are called rustlsq_*; its header
++      dnl maps the names rustls-ffi has to them
++      AC_CHECK_LIB(rustls_quic, rustlsq_supported_hpke,
++          [
++          AC_DEFINE(USE_RUSTLS, 1, [if Rustls is enabled])
++          RUSTLS_ENABLED=1
++          USE_RUSTLS="yes"
++          ssl_msg="Rustls"
++          test "rustls" != "$DEFAULT_SSL_BACKEND" || VALID_DEFAULT_SSL_BACKEND=yes
++          ],
++          AC_MSG_ERROR([--with-rustls was specified but could not find compatible Rustls.]),
++          $RUSTLS_LDFLAGS)
++
++      dnl rustls-ffi-quic has the QUIC API
++      AC_CHECK_FUNCS([rustlsq_quic_client_connection_new], [QUIC_ENABLED=yes])
++    else
++      AC_CHECK_LIB(rustls, rustls_supported_hpke,
++          [
++          AC_DEFINE(USE_RUSTLS, 1, [if Rustls is enabled])
++          RUSTLS_ENABLED=1
++          USE_RUSTLS="yes"
++          ssl_msg="Rustls"
++          test "rustls" != "$DEFAULT_SSL_BACKEND" || VALID_DEFAULT_SSL_BACKEND=yes
++          ],
++          AC_MSG_ERROR([--with-rustls was specified but could not find compatible Rustls.]),
++          $RUSTLS_LDFLAGS)
++    fi
+   fi
+ 
+   test -z "$ssl_msg" || ssl_backends="${ssl_backends:+$ssl_backends, }$ssl_msg"

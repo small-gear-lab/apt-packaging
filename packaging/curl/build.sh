@@ -1,5 +1,5 @@
 #!/bin/bash
-# Rebuild the curl debs (OpenSSL flavour, HTTP/3 via ngtcp2 + nghttp3) from this directory's debian/.
+# Rebuild the curl debs (OpenSSL and Rustls flavours, HTTP/3 via ngtcp2 + nghttp3) from this directory's debian/.
 #
 #   build.sh fetch [version]   download the upstream tarball and its signature into ~/.cache/curl-dl/orig/
 #                              and verify it against Daniel Stenberg's key (throw-away GNUPGHOME)

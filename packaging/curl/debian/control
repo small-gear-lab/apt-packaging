@@ -20,8 +20,10 @@ Build-Depends: debhelper-compat (= 13),
                libnghttp2-dev,
                libnghttp3-dev,
                libngtcp2-crypto-ossl-dev,
+               libngtcp2-crypto-rustls-dev,
                libngtcp2-dev,
                libpsl-dev,
+               librustls-quic-dev,
                libssh2-1-dev,
                libssl-dev,
                libtool,
@@ -40,14 +42,34 @@ Vcs-Git: https://salsa.debian.org/debian/curl.git
 Vcs-Browser: https://salsa.debian.org/debian/curl
 Homepage: https://curl.se/
 
+# curl and libcurl4t64 are metapackages: what they install is one of two flavours, which differ in the TLS
+# library (OpenSSL or Rustls). The flavours conflict, as each has /usr/bin/curl and libcurl.so.4. The
+# metapackage keeps the name that other packages depend on (libcurl4t64, with the shlibs of libcurl.so.4), so
+# switching the flavour does not touch them: `apt install curl-rustls libcurl4t64-rustls`.
 Package: curl
+Architecture: all
+Multi-Arch: foreign
+Depends: curl-openssl | curl-rustls,
+         ${misc:Depends},
+Description: command line tool for transferring data with URL syntax (metapackage)
+ curl is a command line tool for transferring data with URL syntax, supporting
+ DICT, FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3,
+ POP3S, RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
+ .
+ This metapackage installs curl-openssl, or curl-rustls when that is the
+ flavour already installed.
+
+Package: curl-openssl
 Architecture: any
-Depends: libcurl4t64 (= ${binary:Version}),
+Depends: libcurl4t64-openssl (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends},
 Recommends: bash-completion,
+Conflicts: curl-rustls,
+Replaces: curl (<< 8.23.0-1~smallgearlab3),
+Breaks: curl (<< 8.23.0-1~smallgearlab3),
 Multi-Arch: foreign
-Description: command line tool for transferring data with URL syntax
+Description: command line tool for transferring data with URL syntax (OpenSSL flavour)
  curl is a command line tool for transferring data with URL syntax, supporting
  DICT, FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3,
  POP3S, RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
@@ -56,20 +78,65 @@ Description: command line tool for transferring data with URL syntax
  based upload, proxies, cookies, user+password authentication (Basic, Digest,
  NTLM, Negotiate, kerberos...), file transfer resume, proxy tunneling and a
  busload of other useful tricks.
+ .
+ SSL support is provided by OpenSSL. HTTP/3 uses ngtcp2.
+
+Package: curl-rustls
+Architecture: any
+Depends: libcurl4t64-rustls (= ${binary:Version}),
+         ${misc:Depends},
+         ${shlibs:Depends},
+Recommends: bash-completion,
+Conflicts: curl-openssl,
+Replaces: curl (<< 8.23.0-1~smallgearlab3),
+Breaks: curl (<< 8.23.0-1~smallgearlab3),
+Multi-Arch: foreign
+Description: command line tool for transferring data with URL syntax (Rustls flavour)
+ curl is a command line tool for transferring data with URL syntax, supporting
+ DICT, FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3,
+ POP3S, RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
+ .
+ SSL support is provided by Rustls, with HTTP/3 (ngtcp2) and Encrypted Client
+ Hello. This flavour has no NTLM authentication, no public key pinning
+ (--pinnedpubkey) and no --capath: Rustls does not offer what they need.
 
 Package: libcurl4t64
+# libcurl4: what the real libcurl4t64 has always provided, and what other packages (sublime-merge: libcurl3 | libcurl4)
+# depend on. ${t64:Provides} is empty for a package without libraries.
 Provides: ${t64:Provides},
+          libcurl4 (= ${binary:Version}),
 X-Time64-Compat: libcurl4
 Breaks: libcurl4 (<< ${source:Version}),
+Architecture: any
+Section: libs
+Depends: libcurl4t64-openssl (= ${binary:Version}) | libcurl4t64-rustls (= ${binary:Version}),
+         ${misc:Depends},
+Conflicts: libcurl3,
+Replaces: libcurl3,
+          libcurl4,
+Multi-Arch: same
+Description: easy-to-use client-side URL transfer library (metapackage)
+ libcurl is an easy-to-use client-side URL transfer library, supporting DICT,
+ FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S,
+ RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
+ .
+ This metapackage is the name that other packages depend on. It installs
+ libcurl4t64-openssl, or libcurl4t64-rustls when that is the flavour already
+ installed.
+
+Package: libcurl4t64-openssl
 Architecture: any
 Section: libs
 Depends: ${misc:Depends},
          ${shlibs:Depends},
 Recommends: ca-certificates,
 Pre-Depends: ${misc:Pre-Depends},
-Conflicts: libcurl3,
+Conflicts: libcurl4t64-rustls,
+          libcurl3,
 Replaces: libcurl3,
           libcurl4,
+          libcurl4t64 (<< 8.23.0-1~smallgearlab3),
+Breaks: libcurl4t64 (<< 8.23.0-1~smallgearlab3),
 Multi-Arch: same
 Description: easy-to-use client-side URL transfer library (OpenSSL flavour)
  libcurl is an easy-to-use client-side URL transfer library, supporting DICT,
@@ -81,11 +148,32 @@ Description: easy-to-use client-side URL transfer library (OpenSSL flavour)
  Digest, NTLM, Negotiate, Kerberos), file transfer resume, http proxy tunneling
  and more!
  .
- libcurl is free, thread-safe, IPv6 compatible, feature rich, well supported,
- fast, thoroughly documented and is already used by many known, big and
- successful companies and numerous applications.
+ SSL support is provided by OpenSSL. HTTP/3 uses ngtcp2.
+
+Package: libcurl4t64-rustls
+Architecture: any
+Section: libs
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+Recommends: ca-certificates,
+Pre-Depends: ${misc:Pre-Depends},
+Conflicts: libcurl4t64-openssl,
+          libcurl3,
+Replaces: libcurl3,
+          libcurl4,
+          libcurl4t64 (<< 8.23.0-1~smallgearlab3),
+Breaks: libcurl4t64 (<< 8.23.0-1~smallgearlab3),
+Multi-Arch: same
+Description: easy-to-use client-side URL transfer library (Rustls flavour)
+ libcurl is an easy-to-use client-side URL transfer library, supporting DICT,
+ FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S,
+ RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
  .
- SSL support is provided by OpenSSL.
+ SSL support is provided by Rustls (rustls-ffi-quic), with HTTP/3 (ngtcp2) and
+ Encrypted Client Hello. This flavour has no NTLM authentication, no public
+ key pinning (CURLOPT_PINNEDPUBLICKEY) and no CURLOPT_CAPATH. It exports the
+ same symbols (CURL_OPENSSL_4) as the OpenSSL flavour, so programs built
+ against either run with it.
 
 Package: libcurl4-openssl-dev
 Architecture: any
@@ -95,10 +183,11 @@ Provides: libcurl-dev,
           libcurl3-dev,
           libcurl3-openssl-dev,
           libcurl4-dev,
-Conflicts: libcurl4-gnutls-dev,
+Conflicts: libcurl4-rustls-dev,
+           libcurl4-gnutls-dev,
            libssl1.0-dev,
 Depends: libbrotli-dev,
-         libcurl4t64 (= ${binary:Version}),
+         libcurl4t64-openssl (= ${binary:Version}),
          libgsasl-dev,
          libidn2-dev,
          libkrb5-dev,
@@ -123,19 +212,50 @@ Description: development files and documentation for libcurl (OpenSSL flavour)
  FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S,
  RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
  .
- libcurl supports SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP
- form based upload, proxies, cookies, user+password authentication (Basic,
- Digest, NTLM, Negotiate, Kerberos), file transfer resume, http proxy tunneling
- and more!
- .
- libcurl is free, thread-safe, IPv6 compatible, feature rich, well supported,
- fast, thoroughly documented and is already used by many known, big and
- successful companies and numerous applications.
- .
  This package provides the development files (ie. includes, static library,
  manual pages) that allow one to build software which uses libcurl.
  .
  SSL support is provided by OpenSSL.
+
+Package: libcurl4-rustls-dev
+Architecture: any
+Section: libdevel
+Provides: libcurl-dev,
+          libcurl3-dev,
+          libcurl4-dev,
+Conflicts: libcurl4-openssl-dev,
+           libcurl4-gnutls-dev,
+           libssl1.0-dev,
+Depends: libbrotli-dev,
+         libcurl4t64-rustls (= ${binary:Version}),
+         libgsasl-dev,
+         libidn2-dev,
+         libkrb5-dev,
+         libldap-dev,
+         libnghttp2-dev,
+         libnghttp3-dev,
+         libngtcp2-crypto-rustls-dev,
+         libngtcp2-dev,
+         libpsl-dev,
+         libssh2-1-dev,
+         librustls-quic-dev,
+         libzstd-dev,
+         zlib1g-dev,
+         ${misc:Depends},
+Suggests: dpkg-dev,
+          libcurl4-doc,
+          libidn-dev,
+          pkgconf,
+Multi-Arch: same
+Description: development files and documentation for libcurl (Rustls flavour)
+ libcurl is an easy-to-use client-side URL transfer library, supporting DICT,
+ FILE, FTP, FTPS, GOPHER, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S,
+ RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
+ .
+ This package provides the development files (ie. includes, static library,
+ manual pages) that allow one to build software which uses libcurl.
+ .
+ SSL support is provided by Rustls.
 
 Package: libcurl4-doc
 Section: doc
