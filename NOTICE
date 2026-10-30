@@ -1,0 +1,49 @@
+small-gear-lab apt
+Copyright (c) 2026 Small Gear Lab
+Copyright (c) 2026 Marie
+
+This repository holds build recipes for packages of other people's software. The software itself is not
+part of it: sources are downloaded when a package is built, and the built packages are not kept here.
+The recipes written here are licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
+
+The following third-party material is included and keeps its own license.
+
+packaging/curl/debian/ and packaging/kitty/debian/
+  Debian and Ubuntu's packaging of curl and kitty, adapted here (patches added or dropped, the
+  rules changed). The copyright and license of each file are given in debian/copyright of each tree and in
+  the headers of the files in debian/patches/. In short:
+    curl   - upstream: Daniel Stenberg and many contributors, under the curl license;
+             debian/: the Debian curl maintainers and Ubuntu developers.
+    kitty  - upstream: Kovid Goyal, GPL-3+; debian/: James McCoy and Maytham Alsudany, with Ubuntu's changes.
+  The kitty patches 0016 and 0017 written here change kitty's own source and follow kitty's license (GPL-3).
+
+Symbols Nerd Font Mono (SymbolsNerdFontMono-Regular.ttf) in the kitty package
+  Neither the font nor its license documents are kept in this repository. packaging/kitty/build.sh takes the
+  font out of kitty's own signed release archive when a package is built, so it is the Nerd Fonts version that
+  upstream kitty ships (v3.3.0 for kitty 0.49.2), finds the Nerd Fonts release it comes from, and fetches that
+  release's license documents, which the package installs next to the font (/usr/lib/kitty/fonts/):
+    LICENSE                      MIT, Copyright (c) 2014 Ryan L McIntyre (the Symbols Only release asset)
+    NERD-FONTS-LICENSE           the repository's LICENSE, with the SIL OFL 1.1 text
+    NERD-FONTS-LICENSE-AUDIT.md  the licenses of the glyph sets the font gathers
+    NERD-FONTS-VERSION           which Nerd Fonts release the font is
+  Nerd Fonts, https://github.com/ryanoasis/nerd-fonts, states the license of the Symbols Only font as MIT.
+  The glyph sets inside it keep their own licenses (for v3.3.0: Codicons and Font Awesome CC-BY-4.0, Material
+  Design Icons Apache-2.0, Pomicons and Weather Icons OFL-1.1, several MIT, Powerline Symbols "Free License",
+  Font Logos unlicensed); packaging/kitty/debian/copyright lists them.
+
+Go code linked into kitty's Go programs (kitten): the Go modules in kitty's vendor/ (36 for kitty 0.49.2) and
+  the Go standard library. Their code is not in this repository. When the kitty package is built,
+  packaging/kitty/gen-vendor-licenses.py copies each module's license files into the package
+  (/usr/share/doc/kitty/vendor-licenses/) and writes a paragraph for each into the package's copyright file.
+
+Software that the recipes download and build, under its own license and not included here:
+
+  curl           https://curl.se/                         curl license
+  kitty          https://github.com/kovidgoyal/kitty     GPL-3
+  rustls-ffi     https://github.com/rustls/rustls-ffi     Apache-2.0 OR ISC OR MIT
+  Slang          https://github.com/shader-slang/slang    Apache-2.0 WITH LLVM-exception
+                 packaging/kitty-slang-compiler/build.sh installs slangc and the libraries it loads from
+                 the official release, unmodified, together with the release's LICENSE and LICENSES/.
+                 The release also carries third-party components; the texts of their licenses are
+                 collected in its LICENSES/ (Apache-2.0, BSL-1.0, CC-BY-4.0, LLVM-exception,
+                 UIUC/NCSA, MIT, Unlicense). It does not say which component uses which.
