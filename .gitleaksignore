@@ -5,3 +5,6 @@
 # curl's release-signing key fingerprint (public, published at https://daniel.haxx.se/mykey.asc);
 # build.sh compares the verified signature with it. "key_fpr" and the hex string trip generic-api-key.
 packaging/curl/build.sh:generic-api-key:26
+# The same finding as gitleaks reports it when it reads the history: the commit is part of the fingerprint, so
+# rewriting that commit means changing the hash here.
+b89e846:packaging/curl/build.sh:generic-api-key:26
