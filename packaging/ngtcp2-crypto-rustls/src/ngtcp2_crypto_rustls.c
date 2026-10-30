@@ -388,6 +388,15 @@ void ngtcp2_crypto_rustls_session_free(ngtcp2_crypto_rustls_session *s) {
   free(s);
 }
 
+int ngtcp2_crypto_rustls_session_peer_certificate(
+  const ngtcp2_crypto_rustls_session *s, size_t i, const uint8_t **der,
+  size_t *len) {
+  if (s == NULL || s->tls == NULL) {
+    return -1;
+  }
+  return rustls_quic_connection_peer_certificate(s->tls, i, der, len) ? 0 : -1;
+}
+
 ngtcp2_crypto_ctx *ngtcp2_crypto_ctx_tls(ngtcp2_crypto_ctx *ctx,
                                          void *tls_native_handle) {
   ngtcp2_crypto_rustls_session *s = tls_native_handle;

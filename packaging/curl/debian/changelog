@@ -1,3 +1,15 @@
+curl (8.23.0-1~smallgearlab6) resolute; urgency=medium
+
+  * Rustls flavour: --pinnedpubkey works over HTTP/3 too.
+    - New patch rustls-pinned-public-key-quic.patch: the certificate of the
+      server comes from the session of ngtcp2_crypto_rustls, and is checked as
+      over TCP. Before, a pinned key made every HTTP/3 connection fail.
+    - Build-Depends: librustls-quic-dev (>= 0.15.7+quic2) and
+      libngtcp2-crypto-rustls-dev (>= 1.16.0-1~smallgearlab2), the versions that
+      have the functions this uses.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sat, 31 Oct 2026 00:20:00 +0900
+
 curl (8.23.0-1~smallgearlab5) resolute; urgency=medium
 
   * Rustls flavour: --capath and --pinnedpubkey work.

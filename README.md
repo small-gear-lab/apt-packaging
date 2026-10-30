@@ -17,7 +17,7 @@ Packages built here:
 
 - `kitty` 0.49.2 with a few IME patches, and the `kitty-slang-compiler` it needs to build
 - `curl` 8.23.0 with HTTP/3 (ngtcp2 + nghttp3), in two flavours: `curl-openssl` on top of Ubuntu's OpenSSL 3.5, and
-  `curl-rustls` with Rustls (Encrypted Client Hello and `--capath`; pinning over TCP only; no NTLM). `curl` and `libcurl4t64`
+  `curl-rustls` with Rustls (Encrypted Client Hello, `--capath` and `--pinnedpubkey`; no NTLM). `curl` and `libcurl4t64`
   are metapackages that pick one of them. The flavours are in `resolute-testing`.
 - `rustls-ffi-quic` (`librustls-quic`): rustls-ffi with a C API over `rustls::quic`, from
   <https://github.com/small-gear-lab/rustls-ffi-quic>, and `ngtcp2-crypto-rustls`, the ngtcp2 helper that uses

@@ -1,3 +1,15 @@
+rustls-ffi-quic (0.15.7+quic2-1~smallgearlab1) resolute; urgency=medium
+
+  * From the tag v0.15.7+quic2 (on the branch renamed): the new function
+    rustlsq_quic_connection_peer_certificate returns the certificates that the
+    server sent over a QUIC connection, which curl needs to check a pinned
+    public key over HTTP/3. The soname is the same, so the dependency of the
+    packages that use it names the version (dh_makeshlibs -V).
+  * main (upstream's names) and renamed (the renaming as one commit) are two
+    branches now; the package is built from a tag on renamed.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sat, 31 Oct 2026 00:00:00 +0900
+
 rustls-ffi-quic (0.15.7+quic1-1~smallgearlab2) resolute; urgency=medium
 
   * Built from the tag v0.15.7+quic1 of rustls-ffi-quic (REV names the tag

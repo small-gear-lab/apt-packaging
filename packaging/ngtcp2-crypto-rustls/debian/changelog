@@ -1,3 +1,12 @@
+ngtcp2-crypto-rustls (1.16.0-1~smallgearlab2) resolute; urgency=medium
+
+  * New function ngtcp2_crypto_rustls_session_peer_certificate: the DER of the
+    certificates that the server sent, for curl's pinned public key over
+    HTTP/3. It needs librustls-quic 0.15.7+quic2, and the packages that use
+    this library depend on this version or a later one (dh_makeshlibs -V).
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sat, 31 Oct 2026 00:10:00 +0900
+
 ngtcp2-crypto-rustls (1.16.0-1~smallgearlab1) resolute; urgency=medium
 
   * Initial packaging of the ngtcp2 crypto helper for Rustls, which lets

@@ -17,6 +17,9 @@ PC_LIBS := $(shell pkgconf --libs libngtcp2 rustls-quic)
 
 override_dh_auto_configure:
 
+override_dh_makeshlibs:
+	dh_makeshlibs -V 'libngtcp2-crypto-rustls0 (>= 1.16.0-1~smallgearlab2)'
+
 override_dh_auto_build:
 	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -Wall -Wextra -Icrypto -Ilib -Icrypto/rustls $(PC_CFLAGS) \
 		-c crypto/shared.c -o crypto/shared.o

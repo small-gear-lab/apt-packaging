@@ -20,10 +20,10 @@ Build-Depends: debhelper-compat (= 13),
                libnghttp2-dev,
                libnghttp3-dev,
                libngtcp2-crypto-ossl-dev,
-               libngtcp2-crypto-rustls-dev,
+               libngtcp2-crypto-rustls-dev (>= 1.16.0-1~smallgearlab2),
                libngtcp2-dev,
                libpsl-dev,
-               librustls-quic-dev,
+               librustls-quic-dev (>= 0.15.7+quic2),
                libssh2-1-dev,
                libssl-dev,
                libtool,
@@ -98,8 +98,8 @@ Description: command line tool for transferring data with URL syntax (Rustls fla
  .
  SSL support is provided by Rustls, with HTTP/3 (ngtcp2) and Encrypted Client
  Hello. This flavour has no NTLM authentication: the NTLM code needs DES from
- a TLS library. Public key pinning (--pinnedpubkey) works for HTTPS over TCP;
- over HTTP/3 a pinned key makes the connection fail, as it cannot be checked.
+ a TLS library. Public key pinning (--pinnedpubkey) and --capath work, for
+ HTTPS over TCP and over HTTP/3.
 
 Package: libcurl4t64
 # libcurl4: what the real libcurl4t64 has always provided, and what other packages (sublime-merge: libcurl3 | libcurl4)
@@ -171,11 +171,10 @@ Description: easy-to-use client-side URL transfer library (Rustls flavour)
  RTMP, RTSP, SCP, SFTP, SMTP, SMTPS, TELNET and TFTP.
  .
  SSL support is provided by Rustls (rustls-ffi-quic), with HTTP/3 (ngtcp2) and
- Encrypted Client Hello. This flavour has no NTLM authentication. Public key
- pinning (CURLOPT_PINNEDPUBLICKEY) works for HTTPS over TCP and is refused
- over HTTP/3 (the connection fails). It exports the same symbols
- (CURL_OPENSSL_4) as the OpenSSL flavour, so programs built against either run
- with it.
+ Encrypted Client Hello. This flavour has no NTLM authentication.
+ CURLOPT_PINNEDPUBLICKEY and CURLOPT_CAPATH work, over TCP and over HTTP/3. It
+ exports the same symbols (CURL_OPENSSL_4) as the OpenSSL flavour, so programs
+ built against either run with it.
 
 Package: libcurl4-openssl-dev
 Architecture: any

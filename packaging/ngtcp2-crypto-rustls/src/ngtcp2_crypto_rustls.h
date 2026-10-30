@@ -15,4 +15,10 @@ ngtcp2_crypto_rustls_session *ngtcp2_crypto_rustls_session_new(
     const struct rustls_client_config *config, ngtcp2_crypto_conn_ref *conn_ref,
     const char *server_name, const uint8_t *alpn, size_t alpnlen);
 void ngtcp2_crypto_rustls_session_free(ngtcp2_crypto_rustls_session *s);
+
+/* The DER of the i-th certificate that the server sent (0 is the end-entity certificate), valid as long as the session
+ * is. Returns 0, or -1 when there is none (the handshake has not got that far, or i is past the last). */
+int ngtcp2_crypto_rustls_session_peer_certificate(
+    const ngtcp2_crypto_rustls_session *s, size_t i, const uint8_t **der,
+    size_t *len);
 #endif

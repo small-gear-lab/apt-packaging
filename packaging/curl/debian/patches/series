@@ -3,3 +3,4 @@ build-Divide-mit-krb5-gssapi-link-flags-between-LDFLAGS-a.patch
 rustls-http3-ngtcp2-quic.patch
 rustls-capath.patch
 rustls-pinned-public-key.patch
+rustls-pinned-public-key-quic.patch

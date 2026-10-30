@@ -1,0 +1,35 @@
+Description: Check a pinned public key over HTTP/3 with Rustls
+ rustls-pinned-public-key.patch makes a pinned public key fail the connection
+ over HTTP/3, as the certificate could not be had from the QUIC session. It
+ can now: the session of ngtcp2_crypto_rustls (libngtcp2_crypto_rustls) gives
+ the DER of the certificates of the server, which rustls-ffi-quic has from
+ rustlsq_quic_connection_peer_certificate. The check is the same as over TCP.
+Author: Marie <289302950+marie-222@users.noreply.github.com>
+Forwarded: no
+Last-Update: 2026-10-30
+---
+diff --git a/lib/vquic/vquic-tls.c b/lib/vquic/vquic-tls.c
+--- a/lib/vquic/vquic-tls.c
++++ b/lib/vquic/vquic-tls.c
+@@ -185,10 +185,17 @@
+     cf, data, ctx->gtls.session, conn_config, &data->set.ssl, peer,
+     CURL_EASY_STR(data, STRING_SSL_PINNEDPUBLICKEY));
+ #elif defined(USE_RUSTLS)
+-  (void)ctx;
+-  /* The certificate cannot be had from the QUIC session here: a pinned
+-   * public key must not be ignored, so it makes the connection fail. */
+-  result = Curl_rustls_verify_pinned(cf, data, NULL, 0);
++  {
++    /* a pinned public key is checked against the certificate of the server;
++     * without a certificate the check fails (and does nothing when no key is
++     * pinned) */
++    const uint8_t *der = NULL;
++    size_t der_len = 0;
++    if(ngtcp2_crypto_rustls_session_peer_certificate(ctx->rustls.session, 0,
++                                                     &der, &der_len))
++      der = NULL;
++    result = Curl_rustls_verify_pinned(cf, data, der, der ? der_len : 0);
++  }
+ #elif defined(USE_WOLFSSL)
+   (void)data;
+   if(conn_config->verifyhost) {

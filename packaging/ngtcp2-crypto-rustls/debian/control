@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13),
                libngtcp2-dev,
-               librustls-quic-dev,
+               librustls-quic-dev (>= 0.15.7+quic2),
                libssl-dev,
                pkgconf,
 Standards-Version: 4.7.3
