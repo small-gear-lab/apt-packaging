@@ -263,7 +263,7 @@ index 72edac9..3c84ffd 100644
  static CURLcode
  init_config_builder_ech(struct Curl_easy *data,
                          struct Curl_cfilter *cf,
-+                        const struct Curl_peer *origin,
++                        struct Curl_peer *origin,
                          struct rustls_client_config_builder *builder)
  {
    struct ssl_filter_config *conn_config = Curl_ssl_cf_get_filter_config(cf);
@@ -293,7 +293,7 @@ index 72edac9..3c84ffd 100644
                                  struct Curl_easy *data,
 -                                struct rustls_ssl_backend_data * const backend)
 +                                const struct alpn_spec *alpn,
-+                                const struct Curl_peer *origin,
++                                struct Curl_peer *origin,
 +                                const struct rustls_client_config **pconfig)
  {
 -  const struct ssl_connect_data *connssl = cf->ctx;

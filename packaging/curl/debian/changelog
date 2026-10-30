@@ -1,3 +1,21 @@
+curl (8.23.0-1~smallgearlab5) resolute; urgency=medium
+
+  * Rustls flavour: --capath and --pinnedpubkey work.
+    - New patch rustls-capath.patch: the PEM files of a CA directory that
+      the application set itself are read into the root store. The directory
+      that configure names (/etc/ssl/certs) is not read: it holds what the CA
+      bundle holds, and reading it would add to the CAs of --cacert.
+    - New patch rustls-pinned-public-key.patch: the public key of the server
+      certificate is checked with Curl_pin_peer_pubkey. The Rustls backend
+      had no sha256sum, which makes Curl_pin_peer_pubkey fail for every
+      sha256// pin; curl's own SHA-256 is used. Over HTTP/3 a pinned key
+      makes the connection fail (the certificate cannot be had from the QUIC
+      session yet), as it must not be ignored.
+  * rustls-http3-ngtcp2-quic.patch: the origin passed to the ECH code is
+    not const (two -Wdiscarded-qualifiers warnings).
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 23:00:00 +0900
+
 curl (8.23.0-1~smallgearlab4) resolute; urgency=medium
 
   * The metapackage libcurl4t64 provides libcurl4 (= its version), as the

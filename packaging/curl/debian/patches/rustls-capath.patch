@@ -1,0 +1,159 @@
+Description: CURLOPT_CAPATH for Rustls
+ Rustls has no lookup of trusted certificates by name in a directory, so the
+ PEM files of the directory are read into the root store when the client
+ config is built (a file that is not PEM, or a certificate that cannot be
+ used, is skipped; a directory that cannot be opened is
+ CURLE_SSL_CACERT_BADFILE). This makes --capath work with the Rustls backend
+ (SSLSUPP_CA_PATH).
+ Only a CA path that the application set itself is read
+ (ssl_easy_config.custom_capath): the one that configure names
+ (--with-ca-path) is not, as it holds what the CA bundle holds, and reading it
+ would add to the CAs that the application chose with CURLOPT_CAINFO.
+Author: Marie <289302950+marie-222@users.noreply.github.com>
+Forwarded: no
+Last-Update: 2026-10-30
+---
+diff --git a/lib/vtls/rustls.c b/lib/vtls/rustls.c
+index 3c84ffd..ef499f1 100644
+--- a/lib/vtls/rustls.c
++++ b/lib/vtls/rustls.c
+@@ -29,6 +29,10 @@
+ 
+ #include <rustls.h>
+ 
++#ifdef HAVE_DIRENT_H
++#include <dirent.h>
++#endif
++
+ #include "curlx/win32-fopen.h"
+ #include "curlx/strerr.h"
+ #include "urldata.h"
+@@ -45,6 +49,9 @@
+ #include "curlx/base64.h"
+ #endif
+ 
++/* the largest file read from a CA directory (a bundle is a few hundred KB) */
++#define DYN_CAPATH_FILE_SIZE (16 * 1024 * 1024)
++
+ #if EAGAIN != EWOULDBLOCK
+ #define RAW_EAGAIN(e) ((e) == EWOULDBLOCK || (e) == EAGAIN)
+ #else
+@@ -711,12 +718,59 @@ cleanup:
+   return result;
+ }
+ 
++#ifdef HAVE_DIRENT_H
++/* CURLOPT_CAPATH: the trusted certificates are the PEM files of a directory.
++ * OpenSSL looks them up by hash when it needs one; Rustls has no such lookup,
++ * so every file is read when the config is built. A file that is not PEM, or
++ * holds a certificate that cannot be used, is skipped. */
++static CURLcode
++add_ca_path(struct Curl_easy *data,
++            struct rustls_root_cert_store_builder *roots_builder,
++            const char *ca_path)
++{
++  DIR *dir = opendir(ca_path);
++  struct dirent *entry;
++  size_t files = 0;
++
++  if(!dir) {
++    failf(data, "rustls: cannot read the CA directory %s", ca_path);
++    return CURLE_SSL_CACERT_BADFILE;
++  }
++  while((entry = readdir(dir))) {
++    struct dynbuf contents;
++    char *path;
++    int ok;
++
++    if(!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
++      continue;
++    path = curl_maprintf("%s/%s", ca_path, entry->d_name);
++    if(!path) {
++      closedir(dir);
++      return CURLE_OUT_OF_MEMORY;
++    }
++    curlx_dyn_init(&contents, DYN_CAPATH_FILE_SIZE);
++    ok = read_file_into(path, &contents);   /* a directory fails: skipped */
++    if(ok && curlx_dyn_len(&contents) &&
++       rustls_root_cert_store_builder_add_pem(
++         roots_builder, curlx_dyn_uptr(&contents),
++         curlx_dyn_len(&contents), 0) == RUSTLS_RESULT_OK)
++      files++;
++    curlx_dyn_free(&contents);
++    curlx_free(path);
++  }
++  closedir(dir);
++  infof(data, "rustls: read %zu files of the CA directory %s", files, ca_path);
++  return CURLE_OK;
++}
++#endif /* HAVE_DIRENT_H */
++
+ static CURLcode
+ init_config_builder_verifier(struct Curl_easy *data,
+                              struct rustls_client_config_builder *builder,
+                              const struct ssl_filter_config *conn_config,
+                              const struct curl_blob *ca_info_blob,
+-                             const char * const ssl_cafile)
++                             const char * const ssl_cafile,
++                             const char * const ssl_capath)
+ {
+   const struct rustls_root_cert_store *roots = NULL;
+   struct rustls_root_cert_store_builder *roots_builder = NULL;
+@@ -748,6 +802,14 @@ init_config_builder_verifier(struct Curl_easy *data,
+     }
+   }
+ 
++#ifdef HAVE_DIRENT_H
++  if(ssl_capath) {
++    result = add_ca_path(data, roots_builder, ssl_capath);
++    if(result)
++      goto cleanup;
++  }
++#endif
++
+   rr = rustls_root_cert_store_builder_build(roots_builder, &roots);
+   if(rr != RUSTLS_RESULT_OK) {
+     rustls_failf(data, rr, "failed to build trusted root certificate store");
+@@ -1060,6 +1122,16 @@ static CURLcode cr_build_config(struct Curl_cfilter *cf,
+   const char * const ssl_cafile =
+     /* CURLOPT_CAINFO_BLOB overrides CURLOPT_CAINFO */
+     (ca_info_blob ? NULL : conn_config->CAfile);
++  /* The CA directory that configure names is not read: it holds what the
++   * CA bundle holds, and reading it would add to the CAs that the application
++   * chose with CURLOPT_CAINFO. Only a CURLOPT_CAPATH it set itself is. */
++#ifndef CURL_DISABLE_PROXY
++  const bool custom_capath = Curl_ssl_cf_is_proxy(cf) ?
++    data->set.proxy_ssl.custom_capath : data->set.ssl.custom_capath;
++#else
++  const bool custom_capath = data->set.ssl.custom_capath;
++#endif
++  const char * const ssl_capath = custom_capath ? conn_config->CApath : NULL;
+   CURLcode result = CURLE_OK;
+   rustls_result rr;
+ 
+@@ -1090,12 +1162,13 @@ static CURLcode cr_build_config(struct Curl_cfilter *cf,
+       return result;
+     }
+   }
+-  else if(ca_info_blob || ssl_cafile) {
++  else if(ca_info_blob || ssl_cafile || ssl_capath) {
+     result = init_config_builder_verifier(data,
+                                           config_builder,
+                                           conn_config,
+                                           ca_info_blob,
+-                                          ssl_cafile);
++                                          ssl_cafile,
++                                          ssl_capath);
+     if(result != CURLE_OK) {
+       rustls_client_config_builder_free(config_builder);
+       return result;
+@@ -1525,6 +1598,9 @@ static void cr_cleanup(void)
+ 
+ const struct Curl_ssl Curl_ssl_rustls = {
+   { CURLSSLBACKEND_RUSTLS, "rustls" },
++#ifdef HAVE_DIRENT_H
++  SSLSUPP_CA_PATH |
++#endif
+   SSLSUPP_CAINFO_BLOB |            /* supports */
+   SSLSUPP_HTTPS_PROXY |
+   SSLSUPP_CIPHER_LIST |

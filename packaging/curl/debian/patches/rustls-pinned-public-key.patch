@@ -1,0 +1,161 @@
+Description: CURLOPT_PINNEDPUBLICKEY for Rustls
+ The public key of the server certificate (the DER of the certificate, which
+ Rustls gives through rustls_certificate_get_der, parsed with Curl_parseX509
+ for its subjectPublicKeyInfo) is checked with Curl_pin_peer_pubkey, as the
+ other backends do, for the server and for the proxy (SSLSUPP_PINNEDPUBKEY).
+ The backend needs a sha256sum for that: Curl_pin_peer_pubkey does not match
+ without one; curl's own SHA-256 is used.
+ Over QUIC the certificate is not reachable from here yet: a pinned public key
+ then makes the connection fail, as it must not be ignored.
+Author: Marie <289302950+marie-222@users.noreply.github.com>
+Forwarded: no
+Last-Update: 2026-10-30
+---
+diff --git a/lib/vquic/vquic-tls.c b/lib/vquic/vquic-tls.c
+index 1591f80..00fed75 100644
+--- a/lib/vquic/vquic-tls.c
++++ b/lib/vquic/vquic-tls.c
+@@ -184,6 +184,11 @@ CURLcode Curl_vquic_tls_verify_peer(struct curl_tls_ctx *ctx,
+   result = Curl_gtls_verifyserver(
+     cf, data, ctx->gtls.session, conn_config, &data->set.ssl, peer,
+     CURL_EASY_STR(data, STRING_SSL_PINNEDPUBLICKEY));
++#elif defined(USE_RUSTLS)
++  (void)ctx;
++  /* The certificate cannot be had from the QUIC session here: a pinned
++   * public key must not be ignored, so it makes the connection fail. */
++  result = Curl_rustls_verify_pinned(cf, data, NULL, 0);
+ #elif defined(USE_WOLFSSL)
+   (void)data;
+   if(conn_config->verifyhost) {
+diff --git a/lib/vtls/rustls.c b/lib/vtls/rustls.c
+index ef499f1..aab5110 100644
+--- a/lib/vtls/rustls.c
++++ b/lib/vtls/rustls.c
+@@ -45,6 +45,7 @@
+ #include "vtls/keylog.h"
+ #include "vtls/cipher_suite.h"
+ #include "vtls/x509asn1.h"
++#include "curl_sha256.h"
+ #ifdef USE_ECH
+ #include "curlx/base64.h"
+ #endif
+@@ -1210,6 +1211,50 @@ static CURLcode cr_build_config(struct Curl_cfilter *cf,
+   return CURLE_OK;
+ }
+ 
++/* CURLOPT_PINNEDPUBLICKEY: the public key of the server certificate, which
++ * `der` is the DER of, must be one of the pinned ones. Rustls has no call that
++ * gives the key, so it is taken out of the certificate. */
++CURLcode Curl_rustls_verify_pinned(struct Curl_cfilter *cf,
++                                   struct Curl_easy *data,
++                                   const unsigned char *der, size_t der_len)
++{
++#ifndef CURL_DISABLE_PROXY
++  const char * const pinnedpubkey = Curl_ssl_cf_is_proxy(cf) ?
++    CURL_EASY_STR(data, STRING_SSL_PINNEDPUBLICKEY_PROXY) :
++    CURL_EASY_STR(data, STRING_SSL_PINNEDPUBLICKEY);
++#else
++  const char * const pinnedpubkey =
++    CURL_EASY_STR(data, STRING_SSL_PINNEDPUBLICKEY);
++  (void)cf;
++#endif
++  struct Curl_X509certificate x509;
++  const struct Curl_asn1Element *pubkey;
++  CURLcode result;
++
++  if(!pinnedpubkey)
++    return CURLE_OK;
++  if(!der || !der_len) {
++    failf(data, "SSL: failed retrieving server certificate");
++    return CURLE_SSL_PINNEDPUBKEYNOTMATCH;
++  }
++  memset(&x509, 0, sizeof(x509));
++  if(Curl_parseX509(&x509, der, der + der_len)) {
++    failf(data, "SSL: failed parsing the server certificate");
++    return CURLE_SSL_PINNEDPUBKEYNOTMATCH;
++  }
++  pubkey = &x509.subjectPublicKeyInfo;
++  if(!pubkey->header || pubkey->end <= pubkey->header) {
++    failf(data, "SSL: failed retrieving public key from server certificate");
++    return CURLE_SSL_PINNEDPUBKEYNOTMATCH;
++  }
++  result = Curl_pin_peer_pubkey(data, pinnedpubkey,
++                                (const unsigned char *)pubkey->header,
++                                (size_t)(pubkey->end - pubkey->header));
++  if(result)
++    failf(data, "SSL: public key does not match pinned public key");
++  return result;
++}
++
+ static CURLcode cr_init_backend(struct Curl_cfilter *cf,
+                                 struct Curl_easy *data,
+                                 struct rustls_ssl_backend_data * const backend)
+@@ -1346,6 +1391,17 @@ static CURLcode cr_connect(struct Curl_cfilter *cf, struct Curl_easy *data,
+               (int)kex_group_name.len,
+               kex_group_name.data);
+       }
++      {
++        const rustls_certificate *leaf =
++          rustls_connection_get_peer_certificate(rconn, 0);
++        const unsigned char *leaf_der = NULL;
++        size_t leaf_len = 0;
++        if(leaf)
++          (void)rustls_certificate_get_der(leaf, &leaf_der, &leaf_len);
++        result = Curl_rustls_verify_pinned(cf, data, leaf_der, leaf_len);
++        if(result)
++          return result;
++      }
+       if(data->set.ssl.certinfo) {
+         size_t num_certs = 0;
+         size_t i;
+@@ -1534,6 +1590,14 @@ size_t Curl_rustls_version(char *buffer, size_t size)
+   return curl_msnprintf(buffer, size, "%.*s", (int)ver.len, ver.data);
+ }
+ 
++/* The SHA-256 that a pinned public key is compared with: curl's own. */
++static CURLcode cr_sha256sum(const unsigned char *input, size_t inputlen,
++                             unsigned char *sha256sum, size_t sha256len)
++{
++  (void)sha256len;
++  return Curl_sha256it(sha256sum, input, inputlen);
++}
++
+ static size_t cr_version(char *buffer, size_t size)
+ {
+   return Curl_rustls_version(buffer, size);
+@@ -1601,6 +1665,7 @@ const struct Curl_ssl Curl_ssl_rustls = {
+ #ifdef HAVE_DIRENT_H
+   SSLSUPP_CA_PATH |
+ #endif
++  SSLSUPP_PINNEDPUBKEY |
+   SSLSUPP_CAINFO_BLOB |            /* supports */
+   SSLSUPP_HTTPS_PROXY |
+   SSLSUPP_CIPHER_LIST |
+@@ -1625,7 +1690,7 @@ const struct Curl_ssl Curl_ssl_rustls = {
+   NULL,                            /* set_engine */
+   NULL,                            /* set_engine_default */
+   NULL,                            /* engines_list */
+-  NULL,                            /* sha256sum */
++  cr_sha256sum,                    /* sha256sum */
+   cr_recv,                         /* recv decrypted data */
+   cr_send,                         /* send data to encrypt */
+   NULL,                            /* get_channel_binding */
+diff --git a/lib/vtls/rustls.h b/lib/vtls/rustls.h
+index 57d6383..31a6d82 100644
+--- a/lib/vtls/rustls.h
++++ b/lib/vtls/rustls.h
+@@ -31,6 +31,14 @@ extern const struct Curl_ssl Curl_ssl_rustls;
+ 
+ size_t Curl_rustls_version(char *buffer, size_t size);
+ 
++struct Curl_cfilter;
++struct Curl_easy;
++/* check the public key of the server certificate (DER) against the one that
++   CURLOPT_PINNEDPUBLICKEY names; CURLE_OK when none is set */
++CURLcode Curl_rustls_verify_pinned(struct Curl_cfilter *cf,
++                                   struct Curl_easy *data,
++                                   const unsigned char *der, size_t der_len);
++
+ #ifdef USE_HTTP3
+ struct Curl_cfilter;
+ struct Curl_easy;

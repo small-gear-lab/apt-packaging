@@ -6,7 +6,7 @@ Two flavours from one source, built from the signed upstream tarball on top of U
 | Suite | Version | What |
 |---|---|---|
 | `resolute` (priority 500) | `8.23.0-1~smallgearlab2` | OpenSSL only, the old layout (`curl`, `libcurl4t64` are real packages). `apt upgrade` takes it. |
-| `resolute-testing` (priority 100) | `8.23.0-1~smallgearlab4` | both flavours, the layout below. Only for `apt install -t resolute-testing ...`. |
+| `resolute-testing` (priority 100) | `8.23.0-1~smallgearlab5` | both flavours, the layout below. Only for `apt install -t resolute-testing ...`. |
 
 The Rustls flavour was installed on this machine on 2026-10-30 (see "Switching").
 
@@ -43,13 +43,20 @@ symbols file of their own (it would bind other packages to a flavour).
 
 - TLS by Rustls (`rustls-ffi-quic`, packages `librustls-quic0.15.7` and `-dev`), HTTP/3 by ngtcp2 with the helper
   `libngtcp2-crypto-rustls` (see `packaging/ngtcp2-crypto-rustls`). **Encrypted Client Hello** works, over HTTP/3 too.
-- **It has no** NTLM (`--ntlm`; the NTLM code needs DES from a TLS library), **no public key pinning**
-  (`--pinnedpubkey`), **no `--capath`**, and none of the OpenSSL-only options (`--enable-proxy-http3`,
-  `--with-ca-fallback`). The CA is `/etc/ssl/certs/ca-certificates.crt`, read at run time. Pinning and `--capath`
-  are planned as patches in `debian/patches/`.
+- **It has no NTLM** (`--ntlm`: the NTLM code needs DES from a TLS library) and none of the OpenSSL-only options
+  (`--enable-proxy-http3`, `--with-ca-fallback`). The CA is `/etc/ssl/certs/ca-certificates.crt`, read at run time.
+- **`--pinnedpubkey` works for HTTPS over TCP** (`rustls-pinned-public-key.patch`). Over **HTTP/3 a pinned key makes the
+  connection fail**: the certificate cannot be had from the QUIC session yet, and a pin must not be ignored.
+  (To do: a function of `rustls-ffi-quic` that returns the peer's certificate, one in the ngtcp2 helper, and the
+  check in `vquic-tls.c`.)
+- **`--capath` works** (`rustls-capath.patch`): the PEM files of the directory are read into the root store when the
+  config is built (Rustls has no lookup by name). Only a directory that the application sets itself is read: the one that
+  `configure` names (`--with-ca-path`, `/etc/ssl/certs`) is not, as it holds what the bundle holds and would add to the
+  CAs that `--cacert` chose. As with OpenSSL, `--capath` adds to the default bundle; `--cacert X --capath Y` trusts X and Y.
 - No session resumption and no 0-RTT over QUIC yet: every connection does the full handshake.
 - `curl -V` says `rustls-ffi/0.15.7/rustls/0.23.46/aws-lc-rs ... ngtcp2/1.16.0 nghttp3/1.12.0`, features `ECH HTTP3`.
-- The patch is `debian/patches/rustls-http3-ngtcp2-quic.patch` (9 files): it splits `cr_build_config()` out of
+- The patches are `debian/patches/rustls-http3-ngtcp2-quic.patch` (9 files), `rustls-capath.patch` and
+  `rustls-pinned-public-key.patch` (both in `lib/vtls/rustls.c`; the second also in `rustls.h` and `vquic-tls.c`). The first splits `cr_build_config()` out of
   `lib/vtls/rustls.c` so that the QUIC filter can build the client config, adds the Rustls branch of `vquic-tls.[ch]`
   and `cf-ngtcp2*.[ch]`, and teaches `configure` the pkg-config module `rustls-quic` (functions `rustlsq_*`; the
   header maps the names of rustls-ffi to them) before `rustls`. Against plain rustls-ffi it builds as before, without
@@ -62,7 +69,11 @@ curl --http3-only -s -o /dev/null -w '%{http_code} %{http_version}\n' https://ww
 curl --http3-only -s --doh-url https://1.1.1.1/dns-query --ech true https://cloudflare-ech.com/cdn-cgi/trace | rg '^(sni|http)='
         # sni=encrypted, http=http/3
 curl --http3-only --cacert <a CA that does not match> https://cloudflare.com/                       # exit 60
+curl --pinnedpubkey sha256//<hash of the key> https://localhost:18443/    # a local `openssl s_server`: 200; a wrong hash: exit 90
+curl --cacert <unrelated> --capath <dir with the system bundle> https://example.com/   # 200; the same with an empty dir: exit 60
 ```
+The pin of a public server can differ from what `openssl s_client` shows: a CDN may answer with an RSA or an ECDSA
+certificate, depending on the client. Try pinning against a server of your own.
 
 ## Switching
 
