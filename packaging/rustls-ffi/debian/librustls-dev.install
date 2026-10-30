@@ -1,0 +1,3 @@
+usr/include/rustls.h
+usr/lib/*/librustls.so
+usr/lib/*/pkgconfig/rustls.pc

@@ -1,0 +1,14 @@
+rustls-ffi (0.15.7-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of rustls-ffi 0.15.7, the C bindings of Rustls that
+    curl's --with-rustls needs, from the upstream release tag.
+  * The library package is named after the soname (librustls.so.0.15.7),
+    which carries the whole upstream version.
+  * Built with the aws-lc-rs provider (HPKE, so Encrypted Client Hello) and
+    the cert_compression feature, as a shared library only.
+  * No -dbgsym package: the release build carries no debug information.
+  * debian/copyright: gen-crate-licenses.py writes a paragraph for each Rust
+    crate that is linked in, and debian/librustls*.docs installs the license
+    files of those crates.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 17:00:00 +0900

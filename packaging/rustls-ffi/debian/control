@@ -1,0 +1,41 @@
+Source: rustls-ffi
+Section: libs
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+# cargo, rustc and cargo-c are not listed: this is built with the builder's own rustup toolchain (see build.sh),
+# which dpkg's dependency check cannot see.
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               pkgconf,
+Standards-Version: 4.7.3
+Homepage: https://github.com/rustls/rustls-ffi
+Rules-Requires-Root: no
+
+# The soname is librustls.so.<upstream version>: every release is its own soname, so the package is named after
+# it. build.sh replaces @SOVER@ by the upstream version.
+Package: librustls@SOVER@
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: C bindings for the Rustls TLS library
+ rustls-ffi lets programs that are not written in Rust use Rustls, a TLS
+ library written in Rust. curl can use it as a TLS backend (--with-rustls).
+ .
+ This build uses the aws-lc-rs crypto provider, which has the HPKE support
+ that Encrypted Client Hello needs, and enables certificate compression
+ (brotli and zlib).
+
+Package: librustls-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: librustls@SOVER@ (= ${binary:Version}),
+         ${misc:Depends},
+Description: C bindings for the Rustls TLS library (development files)
+ rustls-ffi lets programs that are not written in Rust use Rustls, a TLS
+ library written in Rust.
+ .
+ This package provides the header (rustls.h), the librustls.so link and the
+ rustls.pc file for pkg-config. There is no static library: it is 40 MB and
+ nothing here needs it.
