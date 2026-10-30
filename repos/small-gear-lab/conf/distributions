@@ -1,0 +1,19 @@
+Origin: small-gear-lab
+Label: small-gear-lab
+Codename: resolute
+Suite: stable
+Architectures: amd64
+Components: main
+Description: small-gear-lab packages for Ubuntu 26.04 (resolute)
+SignWith: 35CC622C34225A224B16DC97B500B3518F991E1D
+
+Origin: small-gear-lab
+Label: small-gear-lab
+Codename: resolute-testing
+Suite: testing
+Architectures: amd64
+Components: main
+NotAutomatic: yes
+ButAutomaticUpgrades: yes
+Description: small-gear-lab packages for Ubuntu 26.04 (resolute), opt-in testing
+SignWith: 35CC622C34225A224B16DC97B500B3518F991E1D

@@ -1,0 +1,5 @@
+# Make the kitty family compete on version only: lower the ESM pin (510) to the default 500,
+# so that the newest version wins among small-gear-lab, Ubuntu archive and ESM.
+Package: kitty kitty-doc kitty-terminfo kitty-shell-integration
+Pin: release o=UbuntuESMApps
+Pin-Priority: 500

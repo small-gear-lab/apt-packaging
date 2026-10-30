@@ -1,0 +1,13 @@
+# Settings of sgl-reprepro. Copy to ~/.config/sgl-reprepro.conf (mode 600) and fill in.
+# This file is sourced by bash; keep it out of version control.
+
+# Keygrip of the repository signing key: gpg --list-secret-keys --with-keygrip
+keygrip=0000000000000000000000000000000000000000
+
+# Name of the password-manager entry (rbw) that holds the key's passphrase, and its field.
+item='Name of your rbw entry'
+field=Passphrase
+
+# Optional overrides
+#repo=$HOME/.local/share/apt/repos/small-gear-lab
+#preset=/usr/lib/gnupg/gpg-preset-passphrase

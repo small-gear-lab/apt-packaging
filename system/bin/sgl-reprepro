@@ -1,0 +1,29 @@
+#!/bin/bash
+# Run reprepro against a local APT repo, signing without a passphrase prompt.
+#
+# The passphrase of the repo signing key is taken from a password manager (rbw, the Bitwarden CLI),
+# handed to gpg-agent just for this run, and forgotten again on exit. rbw can unlock itself through
+# pinentry-secret-tool (see system/README.md).
+#
+# Which key and which password-manager entry to use is read from a config file that does not belong
+# in the repository:
+#   ${SGL_REPREPRO_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/sgl-reprepro.conf}
+# See sgl-reprepro.conf.example.
+#
+# Usage: sgl-reprepro <reprepro arguments...>   e.g. sgl-reprepro export
+set -euo pipefail
+
+conf=${SGL_REPREPRO_CONF:-${XDG_CONFIG_HOME:-$HOME/.config}/sgl-reprepro.conf}
+[ -r "$conf" ] || { echo "sgl-reprepro: cannot read $conf (see sgl-reprepro.conf.example)" >&2; exit 1; }
+# shellcheck source=/dev/null
+. "$conf"
+: "${keygrip:?set keygrip in $conf}"
+: "${item:?set item in $conf}"
+field=${field:-Passphrase}
+repo=${repo:-$HOME/.local/share/apt/repos/small-gear-lab}
+preset=${preset:-/usr/lib/gnupg/gpg-preset-passphrase}
+
+trap '"$preset" --forget "$keygrip" >/dev/null 2>&1 || true' EXIT
+
+rbw get "$item" --field "$field" | "$preset" --preset "$keygrip"
+reprepro -b "$repo" "$@"
