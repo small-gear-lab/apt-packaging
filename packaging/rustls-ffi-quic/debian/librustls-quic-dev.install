@@ -1,0 +1,3 @@
+usr/include/rustls-quic
+usr/lib/*/librustls_quic.so
+usr/lib/*/pkgconfig/rustls-quic.pc

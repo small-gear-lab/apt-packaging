@@ -1,0 +1,47 @@
+Source: rustls-ffi-quic
+Section: libs
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+# cargo, rustc and cargo-c are not listed: this is built with the builder's own rustup toolchain (see build.sh),
+# which dpkg's dependency check cannot see.
+Build-Depends: debhelper-compat (= 13),
+               cmake,
+               pkgconf,
+Standards-Version: 4.7.3
+Homepage: https://github.com/small-gear-lab/rustls-ffi-quic
+Rules-Requires-Root: no
+
+# The soname is librustls_quic.so.<upstream version>: every release is its own soname, so the package is named after
+# it. build.sh replaces @SOVER@ by the version of rustls-ffi this is based on.
+Package: librustls-quic@SOVER@
+Architecture: any
+Multi-Arch: same
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Description: C bindings for the Rustls TLS library, with a QUIC API
+ rustls-ffi-quic is rustls-ffi, the C bindings of Rustls, with a C API over
+ rustls::quic added, so that a QUIC stack (ngtcp2, for curl's HTTP/3) can use
+ Rustls for the TLS part of the handshake.
+ .
+ The exported functions are named rustlsq_*, not rustls_*, so that this library
+ can be loaded in the same process as rustls-ffi (librustls) without the two
+ answering for each other.
+ .
+ This build uses the aws-lc-rs crypto provider, which has the HPKE support
+ that Encrypted Client Hello needs, and enables certificate compression
+ (brotli and zlib).
+
+Package: librustls-quic-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends: librustls-quic@SOVER@ (= ${binary:Version}),
+         ${misc:Depends},
+Description: C bindings for the Rustls TLS library, with a QUIC API (development files)
+ rustls-ffi-quic is rustls-ffi with a C API over rustls::quic added.
+ .
+ This package provides the headers (rustls-quic/rustls.h, which also maps the
+ names rustls-ffi has to the rustlsq_* ones through
+ rustls-quic/rustls_upstream_names.h), the librustls_quic.so link and the
+ rustls-quic.pc file for pkg-config. There is no static library: it is 40 MB
+ and nothing here needs it.

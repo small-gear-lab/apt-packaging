@@ -1,0 +1,17 @@
+rustls-ffi-quic (0.15.7+quic1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of rustls-ffi-quic: rustls-ffi 0.15.7 with a C API over
+    rustls::quic (rustls_quic_*) for QUIC clients, from a commit of
+    https://github.com/small-gear-lab/rustls-ffi-quic.
+  * The exported functions are named rustlsq_*, so that the library can be
+    loaded together with rustls-ffi. The library is librustls_quic, the
+    pkg-config module rustls-quic, the headers are in
+    /usr/include/rustls-quic.
+  * The library package is named after the soname (librustls_quic.so.0.15.7).
+  * Built with the aws-lc-rs provider (HPKE, so Encrypted Client Hello) and
+    the cert_compression feature, as a shared library only.
+  * debian/copyright: gen-crate-licenses.py writes a paragraph for each Rust
+    crate that is linked in, and debian/librustls-quic*.docs installs the
+    license files of those crates.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 18:00:00 +0900

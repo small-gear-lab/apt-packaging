@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+# rustls-ffi-quic: rustls-ffi with a QUIC API. Built offline with the builder's own Rust toolchain and cargo-c, from the
+# crates that build.sh vendored into vendor/ (.cargo/config.toml points cargo at them).
+
+# No LTO: the C code of aws-lc-sys is linked by rustc, and LTO objects of the C compiler do not mix with that.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/buildflags.mk
+
+# The C compiler flags for the C code in aws-lc-sys (the cc crate and cmake read these).
+export CFLAGS CPPFLAGS
+
+export CARGO_NET_OFFLINE = true
+export CARGO_HOME ?= $(CURDIR)/debian/cargo-home
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+# cinstall builds and installs in one go. cdylib only: the static library is 40 MB and not wanted.
+override_dh_auto_install:
+	cargo cinstall --locked --offline --release --features cert_compression -p rustls-ffi \
+		--library-type cdylib \
+		--prefix=/usr --libdir=/usr/lib/$(DEB_HOST_MULTIARCH) \
+		--destdir=$(CURDIR)/debian/tmp
+
+override_dh_auto_test:
+	# upstream's tests are not run in this local build
+
+# The release profile has no debug information, so a -dbgsym package would only hold empty debug files.
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+# The soname carries the whole version, so any build of this package has the same ABI.
+override_dh_makeshlibs:
+	dh_makeshlibs -V 'librustls-quic@SOVER@ (>= @SOVER@)'
+
+override_dh_auto_clean:
+	rm -rf target debian/cargo-home
