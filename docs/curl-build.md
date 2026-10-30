@@ -74,6 +74,10 @@ curl --pinnedpubkey sha256//<hash of the key> https://localhost:18443/    # a lo
 curl --http3-only --pinnedpubkey sha256//<the hash curl prints> https://cloudflare.com/   # 301; a wrong hash: exit 90
 curl --cacert <unrelated> --capath <dir with the system bundle> https://example.com/   # 200; the same with an empty dir: exit 60
 ```
+A QUIC server that sends a Retry, and updates its keys during a download (the test server of `rustls-ffi-quic`,
+`downstream/tests/aioquic-server.py`, with `RETRY=1 KEY_UPDATES=1`): the Rustls flavour answers the Retry and downloads
+6 MiB through five key updates, body intact (2026-10-30).
+
 The pin of a public server can differ from what `openssl s_client` shows: a CDN may answer with an RSA or an ECDSA
 certificate, depending on the client. Try pinning against a server of your own.
 
