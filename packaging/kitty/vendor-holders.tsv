@@ -1,0 +1,5 @@
+# Copyright holders that the source files of a vendored Go module name but its license file does not.
+# One `module<TAB>holder` per line; gen-vendor-licenses.py adds them to the module's paragraph.
+# (Carried over from the paragraphs in Ubuntu's kitty 0.45.0 packaging.)
+github.com/kovidgoyal/dbus	2025 Kovid Goyal <kovid at kovidgoyal.net>
+github.com/kovidgoyal/imaging	2025 Kovid Goyal <kovid at kovidgoyal.net>

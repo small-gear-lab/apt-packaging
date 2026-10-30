@@ -1,0 +1,6 @@
+debian/tmp/usr/bin/kitty
+debian/tmp/usr/bin/kitten
+debian/tmp/usr/lib/
+debian/tmp/usr/share/applications/kitty.desktop
+debian/tmp/usr/share/icons/
+debian/tmp/usr/share/man/

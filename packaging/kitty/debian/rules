@@ -1,0 +1,94 @@
+#!/usr/bin/make -f
+# vim: noexpandtab shiftwidth=4 softtabstop=0
+
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+
+include /usr/share/dpkg/default.mk
+
+OVERRIDE_CFLAGS = $(CFLAGS) -DSIMDE_ENABLE_OPENMP -fopenmp-simd -O3
+OVERRIDE_CPPFLAGS = $(CPPFLAGS)
+OVERRIDE_LDFLAGS = $(LDFLAGS)
+export OVERRIDE_CFLAGS OVERRIDE_CPPFLAGS OVERRIDE_LDFLAGS
+
+V=
+ifeq (,$(filter terse,$(DEB_BUILD_OPTIONS)))
+	V=--verbose
+endif
+
+HOME = $(CURDIR)/debian/fakehome
+KITTY_RUNTIME_DIRECTORY = $(CURDIR)/debian/fakeruntime
+
+# -buildmode=pie: kitten as a position-independent executable (ASLR, RELRO) like the rest of the system's programs.
+export GOFLAGS = -mod=vendor -buildmode=pie
+export GOTOOLCHAIN = local
+export GOCACHE = $(CURDIR)/debian/gocache
+export GOPATH = $(CURDIR)/debian/gopath
+
+# The Go toolchain's standard library is linked into kitten, so Built-Using names its source package
+# (dh_golang used to define misc:Built-Using; this packaging no longer uses it).
+GO_SOURCE := $(shell p=$$(dpkg -S $$(readlink -f $$(command -v go)) 2>/dev/null | cut -d: -f1); \
+	[ -z "$$p" ] || dpkg-query -W -f='$${source:Package} (= $${source:Version})' "$$p")
+export KITTEN_EXE_FOR_DOCS = $(CURDIR)/linux-package/bin/kitten
+# kitty 0.49 needs slang 2026.14.1; the slang-compiler in Ubuntu 26.04 is older and emits GLSL that Mesa rejects
+export SLANGC = /usr/lib/kitty-slang-compiler/bin/slangc
+
+%:
+	dh $@ --with python3 --with sphinxdoc
+
+override_dh_auto_clean:
+	python3 setup.py $(V) clean
+	rm -rf debian/gocache debian/gopath
+
+override_dh_auto_configure:
+	cp -r $(CURDIR)/debian/external/fonts $(CURDIR)/
+
+override_dh_auto_build:
+	env HOME="$(HOME)" python3 setup.py $(V) linux-package
+ifeq (,$(filter nodoc,$(DEB_BUILD_OPTIONS)))
+	$(MAKE) docs
+endif
+
+override_dh_auto_test:
+	# upstream tests are not run in this local build
+
+override_dh_auto_install:
+	mkdir -p $(CURDIR)/debian/tmp/usr
+	cp -a linux-package/* $(CURDIR)/debian/tmp/usr/
+	# Man pages
+	mkdir -p $(CURDIR)/debian/tmp/usr/share/man/man1
+	mkdir -p $(CURDIR)/debian/tmp/usr/share/man/man5
+	cp $(CURDIR)/docs/_build/man/*.1 $(CURDIR)/debian/tmp/usr/share/man/man1
+	cp $(CURDIR)/docs/_build/man/*.5 $(CURDIR)/debian/tmp/usr/share/man/man5
+	# HTML docs
+	mkdir -p $(CURDIR)/debian/tmp/usr/share/doc/kitty
+	# setup.py linux-package may already have installed docs/_build/html left over from an earlier build, and
+	# cp -r into an existing directory would nest a second copy as html/html: start from nothing.
+	rm -rf $(CURDIR)/debian/tmp/usr/share/doc/kitty/html
+	cp -r $(CURDIR)/docs/_build/html $(CURDIR)/debian/tmp/usr/share/doc/kitty/html
+	# Replace shebangs in Python files
+	sed -i -e "s%#\!/usr/bin/env python$$%#\!/usr/bin/env python3%g" `find $(CURDIR)/debian/tmp/usr/lib/kitty -type f -name "*.py"`
+
+override_dh_install:
+	dh_install -Nkitty-shell-integration -Xlib/kitty/shell-integration
+	dh_install -pkitty-shell-integration
+
+override_dh_installdocs:
+	dh_installdocs
+	# Remove PayPal's tracking pixel
+	[ ! -d debian/kitty-doc ] || sed -i '/pixel\.gif/d' debian/kitty-doc/usr/share/doc/kitty/html/support.html
+	# Remove the screenshot that graphics-protocol.html would fetch from GitHub whenever the page is opened
+	[ ! -d debian/kitty-doc ] || find debian/kitty-doc/usr/share/doc/kitty/html -name '*.html' \
+		-exec sed -i 's|<img [^>]*src="https://github.com/user-attachments/[^>]*>||g' {} +
+
+override_dh_python3:
+	dh_python3 --no-ext-rename
+
+override_dh_installchangelogs:
+	dh_installchangelogs docs/changelog.rst
+
+override_dh_compress:
+	dh_compress -X/html
+
+override_dh_gencontrol:
+	dh_gencontrol -- -Vsimde:Built-Using="$(shell dpkg-query -f '$${source:Package} (= $${source:Version}), ' -W "libsimde-dev")" \
+		-Vmisc:Built-Using="$(GO_SOURCE)"

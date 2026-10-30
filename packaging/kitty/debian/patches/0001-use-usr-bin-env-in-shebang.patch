@@ -1,0 +1,18 @@
+From: Maytham Alsudany <maytha8thedev@gmail.com>
+Date: Mon, 6 Nov 2023 21:48:12 +0800
+Subject: use /usr/bin/env in shebang
+Forwarded: no
+
+This is to fix lintian's error regarding the shebang.
+---
+ shell-integration/fish/vendor_conf.d/kitty-shell-integration.fish | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/shell-integration/fish/vendor_conf.d/kitty-shell-integration.fish
++++ b/shell-integration/fish/vendor_conf.d/kitty-shell-integration.fish
+@@ -1,4 +1,4 @@
+-#!/bin/fish
++#!/usr/bin/env fish
+ 
+ # To use fish's autoloading feature, kitty prepends the vendored integration script directory to XDG_DATA_DIRS.
+ # The original paths needs to be restored here to not affect other programs.

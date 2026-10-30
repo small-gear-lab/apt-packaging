@@ -1,0 +1,711 @@
+kitty (0.49.2-1~smallgearlab9) resolute; urgency=medium
+
+  * debian/rules: remove the screenshot that graphics-protocol.html loads
+    from github.com, so that opening the installed docs fetches nothing
+    from the network (lintian: privacy-breach-generic).
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 15:30:00 +0900
+
+kitty (0.49.2-1~smallgearlab8) resolute; urgency=medium
+
+  * debian/rules: install the HTML docs once. setup.py linux-package
+    already copies a docs/_build/html left over from an earlier build, and
+    cp -r into that directory nested a second copy (html/html). That
+    doubled kitty-doc and left PayPal's tracking pixel in one copy.
+  * debian/rules: define misc:Built-Using as the source package of the Go
+    toolchain (golang-1.26), whose standard library is linked into kitten.
+  * debian/rules: build kitten as a position-independent executable
+    (GOFLAGS=-buildmode=pie), so it gets ASLR and RELRO.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 15:00:00 +0900
+
+kitty (0.49.2-1~smallgearlab7) resolute; urgency=medium
+
+  * Take the Symbols Nerd Font Mono from kitty's own signed release
+    archive (Nerd Fonts v3.3.0, what upstream kitty 0.49.2 ships) instead
+    of the v3.2.1 copy in Ubuntu's source package, and install the license
+    documents of that Nerd Fonts release next to the font in
+    /usr/lib/kitty/fonts/ (LICENSE, NERD-FONTS-LICENSE,
+    NERD-FONTS-LICENSE-AUDIT.md, NERD-FONTS-VERSION).
+  * debian/copyright: describe the glyph sets that font gathers and
+    their licenses.
+  * Account for the Go code linked into kitten: gen-vendor-licenses.py
+    writes a copyright paragraph for each of the 36 vendored Go modules
+    and for the Go standard library, and debian/kitty.docs installs their
+    license files in /usr/share/doc/kitty/vendor-licenses/. Ubuntu's
+    copyright listed only five modules.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 14:30:00 +0900
+
+kitty (0.49.2-1~smallgearlab6) resolute; urgency=medium
+
+  * Rebuild in an empty environment (env -i). The login shell exports
+    LD_RUN_PATH=/usr/local/lib, which ld turned into RUNPATH
+    /usr/local/lib in /usr/bin/kitty (lintian: custom-library-search-path).
+    No source change.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 13:00:00 +0900
+
+kitty (0.49.2-1~smallgearlab5) resolute; urgency=medium
+
+  * Add 0016-ime-preedit-straight-underline-no-italic.patch: draw the
+    IME pre-edit text with a straight underline and without italic
+    (upstream 0.49 uses italic plus a dashed underline).
+  * Add 0017-ime-preedit-mark-cursor-cell.patch: draw the code point at
+    the input method's cursor in reverse video during IME conversion
+    (Wayland text-input-v3 reports the start of the selected clause as
+    cursor_begin), and report cursor-only changes to kitty.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 28 Oct 2026 12:40:49 +0900
+
+kitty (0.49.2-1~smallgearlab4) resolute; urgency=medium
+
+  * Rebuild with kitty-slang-compiler 2026.14.1-1~smallgearlab2, which
+    is now made from the official Slang release instead of the copy in
+    the kitty archive. The generated GLSL is identical; only
+    shaders/*.json (entry point order) and shaders/slangc.version
+    differ.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 28 Oct 2026 12:11:39 +0900
+
+kitty (0.49.2-1~smallgearlab3) resolute; urgency=medium
+
+  * Build-Depend on kitty-slang-compiler (>= 2026.14.1) and set SLANGC
+    in debian/rules instead of passing the upstream slangc from outside.
+    No change to the built files.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 28 Oct 2026 12:00:52 +0900
+
+kitty (0.49.2-1~smallgearlab2) resolute; urgency=medium
+
+  * Build the shaders with the slangc from the upstream 0.49.2 archive
+    (slang 2026.14.1, via SLANGC): the Ubuntu slang-compiler 2026.1.1
+    emits GLSL that Mesa rejects (GL_ARB_shading_language_420pack), so
+    no window could be opened.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 28 Oct 2026 11:53:15 +0900
+
+kitty (0.49.2-1~smallgearlab1) resolute; urgency=medium
+
+  * Update to upstream 0.49.2; build with vendored Go modules (go.mod)
+    instead of system golang-*-dev; add slang-compiler build-dep
+  * Depend on libfontconfig1 and libsystemd0 (loaded with dlopen);
+    suggest slang-compiler
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 28 Oct 2026 10:33:52 +0900
+
+kitty (0.45.0-1build1) resolute; urgency=medium
+
+  * No-change rebuild with Python 3.14 as default
+
+ -- Graham Inggs <ginggs@ubuntu.com>  Thu, 22 Jan 2026 20:59:52 +0000
+
+kitty (0.45.0-1) unstable; urgency=medium
+
+  * New upstream version 0.45.0
+    - Drop un-needed patches
+    - Re-diff patches
+  * Vendor duratime and go-shm
+  * Update versions of imaging and go-parallel (vendored deps)
+  * Add patch to avoid hard-coding toolchain
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 03 Jan 2026 01:47:34 +0530
+
+kitty (0.44.0-1) unstable; urgency=medium
+
+  * New upstream version 0.44.0 (Closes: #1118705)
+    + Re-diff patches
+  * Backport upstream patch to fixup fish integration tests
+  * Vendor go-parallel
+  * Update version of imaging fork
+
+ -- Nilesh Patra <nilesh@debian.org>  Wed, 26 Nov 2025 20:38:15 +0530
+
+kitty (0.43.1-1) unstable; urgency=medium
+
+  * New upstream version 0.43.1
+  * Vendor github.com/kovidgoyal/imaging
+  * Add patch to use golang-github-edwvee-exiffix instead of fork
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 18 Oct 2025 20:28:18 +0530
+
+kitty (0.42.2-1) unstable; urgency=medium
+
+  [ Maytham Alsudany ]
+  * New upstream version 0.42.2
+
+  [ Nilesh Patra ]
+  * Tighten B-D on golang-github-disintegration-imaging-dev
+  * Revert "Patch to use github.com/godbus/dbus instead of fork"
+  * Vendor forked module for now until changes are picked up.
+    Opened https://github.com/godbus/dbus/issues/414 to let godbus upstream know
+    and ask to pickup patches.
+  * Add vendor module information in d/copyright
+  * Copy vendor dir in source root in dh_auto_configure step
+  * Update d/watch to use Version 5
+  * Drop Rules-Requires-Root field
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 27 Sep 2025 23:20:45 +0530
+
+kitty (0.42.1-1) experimental; urgency=medium
+
+  * New upstream version 0.42.1
+  * Refresh patches
+  * Update import path to github.com/kovidgoyal/kitty
+
+ -- Maytham Alsudany <maytham@debian.org>  Tue, 15 Jul 2025 18:32:15 +0800
+
+kitty (0.41.1-2) unstable; urgency=medium
+
+  * Backport upstream patch to fixup FTBFS on s390x
+  * Update patch to avoid privacy breach
+
+ -- Nilesh Patra <nilesh@debian.org>  Thu, 05 Jun 2025 20:39:21 +0530
+
+kitty (0.41.1-1) unstable; urgency=medium
+
+  * New upstream version 0.41.1 (Closes: #1103691)
+    + Addresses: CVE-2025-43929
+  * Refresh patches
+  * Add -tags testing to dh_auto_test so go:build testing files get picked up
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 26 Apr 2025 12:17:24 +0530
+
+kitty (0.40.0-1) unstable; urgency=medium
+
+  * New upstream version 0.40.0
+  * Revert move to vendored fork of imaging, use original disintegration/imaging
+  * Update my maintenance email
+  * Refresh patches
+  * Add libcairo2-dev to Build-Depends
+  * Patch to use disintegration/imaging
+  * d/copyright: Replace FSF address with URL in LGPL-2.1+ stanza
+  * Bump Standards-Version to 4.7.2
+
+ -- Maytham Alsudany <maytham@debian.org>  Mon, 17 Mar 2025 15:22:06 +0800
+
+kitty (0.39.1-1) unstable; urgency=medium
+
+  * New upstream version 0.39.1
+  * Get rid of a patch for removing install
+    instructions, address it in d/clean
+  * Refresh patches
+
+ -- Nilesh Patra <nilesh@debian.org>  Sun, 16 Feb 2025 15:52:43 +0530
+
+kitty (0.39.0-1) unstable; urgency=medium
+
+  * New upstream version 0.39.0
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Sat, 18 Jan 2025 21:07:50 +0800
+
+kitty (0.38.1-1) unstable; urgency=medium
+
+  * New upstream version 0.38.1
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Sat, 04 Jan 2025 15:23:42 +0800
+
+kitty (0.37.0-1) unstable; urgency=medium
+
+  * New upstream version 0.37.0 (Refresh patches)
+
+ -- Nilesh Patra <nilesh@debian.org>  Sun, 24 Nov 2024 11:39:37 +0530
+
+kitty (0.36.4-3) unstable; urgency=medium
+
+  * Avoid raising exception on missing fonts on CI
+  * Add patch to use dbus_try_get_local_machine_id (Closes: #1085337)
+
+ -- Nilesh Patra <nilesh@debian.org>  Fri, 18 Oct 2024 22:22:19 +0530
+
+kitty (0.36.4-2) unstable; urgency=medium
+
+  [ Guillem Jover ]
+  * Do not hardcode gopsutil v3 (Closes: #1083118)
+
+ -- Nilesh Patra <nilesh@debian.org>  Wed, 02 Oct 2024 16:04:06 +0530
+
+kitty (0.36.4-1) unstable; urgency=medium
+
+  * New upstream version 0.36.4 (Refresh patch)
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 28 Sep 2024 12:17:37 +0530
+
+kitty (0.36.1-1) unstable; urgency=medium
+
+  * New upstream version 0.36.1
+   + Update copyright and patches
+  * Embed NERD fonts since it is not currently available in Debian
+  * Move all external stuff to debian/external
+  * Update debian/source/include-binaries to allow vendoring ttf file
+  * Remove uthash from copyright (no longer in upstream source)
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 24 Aug 2024 14:56:47 +0530
+
+kitty (0.35.2-1) unstable; urgency=medium
+
+  * New upstream version 0.35.2 (Closes: #1074216)
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Mon, 24 Jun 2024 23:12:10 +0800
+
+kitty (0.35.1-1) unstable; urgency=medium
+
+  [ Maytham Alsudany ]
+  * New upstream version 0.35.1
+  * Update docs/faq.rst patch to replace another image with a link
+
+  [ Nilesh Patra ]
+  * set LC_ALL and LANG to en_US.UTF-8 to build-time fixup tests
+
+ -- Nilesh Patra <nilesh@debian.org>  Tue, 04 Jun 2024 17:45:33 +0530
+
+kitty (0.34.1-1) unstable; urgency=medium
+
+  [ Nilesh Patra ]
+  * New upstream version 0.34.1 (Refresh Patches)
+    (Closes: #1069740)
+  * Add versioned B-D on golang-any as per go.mod
+  * Add Suggests on fonts-noto-color-emoji (Closes: #1069750)
+  * Add patch to ignore vendor dir. Remove the patch once
+    the module(s) are de-vendored
+
+  [ Michael R. Crusoe ]
+  * pass openmp-simd flags for SIMDe
+
+  [ Maytham Alsudany ]
+  * Add new Depends: golang-github-edwvee-exiffix-dev
+  * Vendor forked disintegration/imaging dependency
+  * d/rules: Remove ifeq nocheck (unneeded since debhelper 13)
+
+ -- Nilesh Patra <nilesh@debian.org>  Wed, 01 May 2024 12:03:05 +0530
+
+kitty (0.33.1-1) unstable; urgency=medium
+
+  * New upstream version 0.33.1
+  * Drop patches that have been applied upstream
+  * Update/Refresh patches
+  * Add patch to fixup tests on s390x
+
+ -- Nilesh Patra <nilesh@debian.org>  Thu, 21 Mar 2024 20:57:34 +0530
+
+kitty (0.33.0-2) unstable; urgency=medium
+
+  * Cherry-pick upstream patch to disable simd on unsupported archs
+  * Fixup for xor-data-256 on !amd64 archs
+  * Update patch as per upstream commit to not call __builtin_cpu_supports
+    for non-SIMD archs.
+
+ -- Nilesh Patra <nilesh@debian.org>  Sun, 17 Mar 2024 01:55:25 +0530
+
+kitty (0.33.0-1) unstable; urgency=medium
+
+  * New upstream version 0.33.0
+  * Update/Refresh patches
+  * Update copyright
+  * Add B-D on libsimde-dev
+  * Override gencontrol to include simde Built-Using
+  * Update lintian override
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 16 Mar 2024 17:46:23 +0530
+
+kitty (0.32.2-1) unstable; urgency=medium
+
+  * New upstream version 0.32.2 (Refresh patches)
+  * d/rules: Set KITTY_PATH_TO_KITTY_EXE for dh_auto_test since
+    the executable can not be found at standard paths during build
+  * Update B-D from pkg-config => pkgconf
+
+ -- Nilesh Patra <nilesh@debian.org>  Sun, 18 Feb 2024 02:57:45 +0530
+
+kitty (0.32.1-1) unstable; urgency=medium
+
+  * New upstream version 0.32.1 (Closes: #1061362)
+  * Update d/copyright
+
+ -- Nilesh Patra <nilesh@debian.org>  Sun, 28 Jan 2024 18:21:26 +0530
+
+kitty (0.32.0-1) unstable; urgency=medium
+
+  [ Maytham Alsudany ]
+  * New upstream version 0.32.0
+    * Drop patches that have been applied upstream, unfuzz remaining patches
+    * Pass --skip-building-kitten to setup.py instead of patching it out
+  * Check for <!nodoc> before building docs
+  * Override lintian warning regarding kitty-doc's Built-Using field
+
+  [ Nilesh Patra ]
+  * d/rules: Remove --vcs-rev parameter altogether
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Sat, 20 Jan 2024 11:26:54 +0530
+
+kitty (0.31.0-4) unstable; urgency=medium
+
+  * Update Forwarded DEP3 patch headers
+  * Remove unneeded hunk from 'use-usr-bin-env-in-shebang' patch
+  * Backport kitten man pages (Closes: #1055770)
+  * Add NEWS entry regarding change in text rendering (Closes: #1059382)
+  * Remove unneeded gmake alias
+  * Pass -trimpath to go build to ensure reproducible binaries
+  * Remove unneeded bin-sbin-mismatch lintian override
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Mon, 25 Dec 2023 21:52:43 +0530
+
+kitty (0.31.0-3) unstable; urgency=medium
+
+  * Move to unstable after fixing bugs in (and testing) the new version.
+  * Patch update-self to disable functionality for packaged version
+    and explicitly state that to the user with a message when the
+    command is run.
+
+ -- Nilesh Patra <nilesh@debian.org>  Fri, 17 Nov 2023 12:45:09 +0530
+
+kitty (0.31.0-2) experimental; urgency=medium
+
+  * Do not install kitty.conf to /etc/xdg as updates are anyway not run
+    on non-frozen builds which includes packages built from source
+    (Closes: #1054633)
+  * Add in upstream patch to Fix config file reloading not working is a
+    system config file is set and no user config file is present at startup
+  * Add a preinst to remove config file if not modified by the user
+
+ -- Nilesh Patra <nilesh@debian.org>  Mon, 13 Nov 2023 15:06:30 +0530
+
+kitty (0.31.0-1) experimental; urgency=medium
+
+  [ Maytham Alsudany ]
+  * New upstream version 0.31.0
+  * Run gen/go_code.py in debian/rules
+  * Add descriptions to patches
+  * Skip failing test_fish_integration
+
+  [ Nilesh Patra ]
+  * Add own d/salsa-ci.yml for running CI; disable reprotest
+  * backport upstream patch to fix test_fish_integration test
+  * Add patch to skip a couple of tests on ppc64el
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 11 Nov 2023 22:14:06 +0530
+
+kitty (0.30.1-1) experimental; urgency=medium
+
+  [ Maytham Alsudany ]
+  * New upstream release (Closes: #1030238, #1037440)
+  * drop old patches
+  * patch: make setup.py compatible with GOPATH mode
+  * update debian/rules to build new kittens binary
+  * install new kitten binary
+  * enforce minimum version for golang-github-bmatcuk-doublestar-dev
+  * resolve lintian shebang error
+  * use dh-golang where possible
+  * Ensure consistent shebangs in Python library files
+  * Eliminate all privacy breaches
+  * Ignore the fact that shell integaration scripts aren't executable
+  * Update address of the FSF in debian/copyright
+  * Remove all installation instructions
+  * Link docs/graphics-protocol.rst image
+  * fixup! Link docs/graphics-protocol.rst image
+
+  [ Nilesh Patra ]
+  * Add myself as new Maintainer and Maytham as Uploader (Closes: #1055347)
+  * Specify XS-Go-Import-Path
+  * Enforce minimum version for golang-golang-x-exp-dev
+  * Do not run tests inside go testing directory
+  * Use dh-golang's buildsystem to test instead of kitty's upstream system
+  * Skip couple of failing go tests
+  * Add ldflags as well to the build command
+  * Run dh_golang and generate Built-Using packages with the
+    same field in d/control
+  * Remove _build from d/clean. Go buildsystem should take care of it
+
+ -- Nilesh Patra <nilesh@debian.org>  Sat, 11 Nov 2023 01:59:38 +0530
+
+kitty (0.26.5-5) unstable; urgency=high
+
+  * Ship kitty-open.desktop as an example, instead of under
+    /usr/share/applications.  This avoids registering kitty as a handler for
+    various MIME types, which could cause it to execute untrusted files,
+    instead of viewing them. (Closes: #1034875)
+
+ -- James McCoy <jamessan@debian.org>  Fri, 12 May 2023 21:46:07 -0400
+
+kitty (0.26.5-4) unstable; urgency=medium
+
+  * Backport test fix when $TERM is set to non-kitty value (Closes: #1030054)
+  * Lintian
+    - Replace libfontconfig1-dev B-D with libfontconfig-dev
+    - Replace libfreetype6-dev B-D with libfreetype-dev
+    - Replace libgl1-mesa-dev B-D with libgl-dev and libglvnd-dev
+
+ -- James McCoy <jamessan@debian.org>  Tue, 31 Jan 2023 06:09:41 -0500
+
+kitty (0.26.5-3) unstable; urgency=medium
+
+  * Backport patch to fix test failures on Python 3.11
+  * Include terminfo file in kitty package, as needed by the ssh kitten
+    (Closes: #1027777)
+
+ -- James McCoy <jamessan@debian.org>  Wed, 04 Jan 2023 06:14:15 -0500
+
+kitty (0.26.5-2) unstable; urgency=medium
+
+  * Upload to unstable
+  * Set up a writable $KITTY_RUNTIME_DIRECTORY for tests
+  * Move Vcs to debian group
+  * Backport patch to fix big-endian test failures
+
+ -- James McCoy <jamessan@debian.org>  Fri, 23 Dec 2022 13:22:36 -0500
+
+kitty (0.26.5-1) experimental; urgency=medium
+
+  * New upstream release (Closes: #1011079)
+    - Remove all backported patches
+    - Add zsh to Build-Depends for shell integration tests
+    - Add fish to Build-Depends for shell integration tests
+  * Set LC_ALL=C.UTF-8 for tests
+  * Split shell-integration files into new kitty-shell-integration package
+  * Lintian:
+    - Adjust overrides to new format
+    - Override bin-sbin-mismatch lintian tag in ssh kitten
+    - Override bash-term-in-posix-shell in ssh shell integration
+  * Switch to dh_installalternatives
+  * Declare compliance with Policy 4.6.2, no changes needed
+  * Backport patch to fix bash integration with bash >= 5.2
+
+ -- James McCoy <jamessan@debian.org>  Tue, 20 Dec 2022 08:43:41 -0500
+
+kitty (0.21.2-2) unstable; urgency=medium
+
+  * Remove docs/_build/ when running clean
+  * Use wrapper script to provide gmake binary during build
+  * Backport security fix
+    + Sanitize notifications ids as they are retransmitted over the TTY
+      (Closes: #1020582, CVE-2022-41322)
+
+ -- James McCoy <jamessan@debian.org>  Wed, 28 Sep 2022 21:54:22 -0400
+
+kitty (0.21.2-1) unstable; urgency=medium
+
+  * New upstream release
+    + BREAKING CHANGES
+      - Session files now use the full "launch" command with all its
+        capabilities. However, the syntax of the command is slightly different
+        from before. In particular watchers are now specified directly on
+        launch and environment variables are set using "--env".
+      - The options to control which modifiers keys to press for various mouse
+        actions have been removed, if you used these options, you will need to
+        replace them with configuration using the new "mouse actions
+        framework" as they will be ignored. The options were:
+        "terminal_select_modifiers", "rectangle_select_modifiers" and
+        "open_url_modifiers".
+  * control: Bump libharfbuzz-dev Build-Depends to >= 2.2.0
+  * Declare compliance with Policy 4.6.0, no changes needed
+  * Document how to use IME with kitty (Closes: #990316)
+
+ -- James McCoy <jamessan@debian.org>  Sun, 21 Nov 2021 11:55:20 -0500
+
+kitty (0.19.3-1) unstable; urgency=medium
+
+  * New upstream release
+    + Fix arbitrary command execution via graphics protocol.  CVE-2020-35605
+
+ -- James McCoy <jamessan@debian.org>  Tue, 22 Dec 2020 15:08:30 -0500
+
+kitty (0.19.2-1) unstable; urgency=medium
+
+  * New upstream release
+  * Add override for repeated-path-segment
+  * Declare compliance with Policy 4.5.1, no changes needed
+  * Bump debhelper-compat to 13
+
+ -- James McCoy <jamessan@debian.org>  Mon, 30 Nov 2020 15:38:53 -0500
+
+kitty (0.19.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * d/copyright: Add information for uthash.h
+  * d/control: Add new Build-Depends on liblcms2-dev
+  * Use system uthash-dev instead of shipped version
+
+ -- James McCoy <jamessan@debian.org>  Wed, 28 Oct 2020 22:43:42 -0400
+
+kitty (0.18.3-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #966107)
+    + Backwards incompatibility: The numbers used to encode mouse buttons for
+      "send_mouse_event" function that can be used in kittens have been
+      changed
+  * rules: Build launcher before running tests
+
+ -- James McCoy <jamessan@debian.org>  Wed, 12 Aug 2020 22:32:41 -0400
+
+kitty (0.17.4-1) unstable; urgency=medium
+
+  * New upstream version
+    + Fix test failures on 64-bit big-endian builds.
+    + Use -fpic to fix build failure on sparc64.
+
+ -- James McCoy <jamessan@debian.org>  Sat, 09 May 2020 09:52:08 -0400
+
+kitty (0.17.3-1) unstable; urgency=medium
+
+  [ James McCoy ]
+  * New upstream release
+    + Fix crash when using drag and drop.  (Closes: #956576)
+    + Update to Unicode 13.0
+    + Add strikethrough capability to terminfo entry
+  * upstream/metadata: Add upstream URLs
+
+  [ Debian Janitor ]
+  * Set upstream metadata fields: Repository.
+
+ -- James McCoy <jamessan@debian.org>  Fri, 24 Apr 2020 08:58:35 -0400
+
+kitty (0.17.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Bump python3-dev Build-Depends to 3.6
+  * Declare compliance with Policy 4.5.0, no changes needed
+
+ -- James McCoy <jamessan@debian.org>  Sat, 28 Mar 2020 10:02:27 -0400
+
+kitty (0.15.0-1) unstable; urgency=medium
+
+  * New upstream release
+    + Dynamically load canberra (for sounds) rather than linking against it.
+
+ -- James McCoy <jamessan@debian.org>  Sun, 15 Dec 2019 22:28:08 -0500
+
+kitty (0.14.6-1) unstable; urgency=medium
+
+  * New upstream release
+    + Support fonts where fontconfig reports spacing=90.  (Closes: #944558)
+  * Declare compliance with Policy 4.4.1, no changes needed
+
+ -- James McCoy <jamessan@debian.org>  Mon, 11 Nov 2019 20:18:35 -0500
+
+kitty (0.14.4-1) unstable; urgency=medium
+
+  * New upstream release
+  * control:
+    + Restrict Wayland B-D to Linux architectures
+  * Update to debhelper compat 12 and debhelper-compat Build-Depends
+  * Declare compliance with Policy 4.4.0, no changes needed
+
+ -- James McCoy <jamessan@debian.org>  Tue, 03 Sep 2019 20:52:30 -0400
+
+kitty (0.14.3-1) unstable; urgency=medium
+
+  * New upstream release
+    + Update to Unicode 12
+  * control:
+    + Add libcanberra-dev to B-D, used for term bell
+    + Add imagemagick to Suggests for icat kitten
+    + Add wayland-protocols/libwayland-dev to B-D to enable Wayland support
+  * Install a system kitty.conf to disable update checks
+  * rules:
+    + Fix name of upstream changelog file
+    + Disable compression of all the html docs
+
+ -- James McCoy <jamessan@debian.org>  Sun, 04 Aug 2019 21:59:29 -0400
+
+kitty (0.13.3-1) unstable; urgency=medium
+
+  * New upstream release
+  * Declare compliance with Policy 4.3.0, no changes needed
+
+ -- James McCoy <jamessan@debian.org>  Thu, 24 Jan 2019 23:16:31 -0500
+
+kitty (0.13.1-1) unstable; urgency=medium
+
+  * New upstream release
+  * Add python3-pil to Build-Depends for tests
+  * Update kitty's homepage.
+    Thanks to Chris Lamb for the patch (Closes: #911848)
+
+ -- James McCoy <jamessan@debian.org>  Sun, 16 Dec 2018 20:40:07 -0500
+
+kitty (0.12.3-1) unstable; urgency=medium
+
+  * New upstream release
+    + Add support for IME via IBus, enabled by setting GLFW_IM_MODULE=ibus
+    + New command, kitty + complete, to export shell completion for bash, zsh,
+      and fish
+  * control: Add libdbus-1-dev to Build-Depends for IBus support
+  * rules: Disable verbose builds for DEB_BUILD_OPTIONS=terse
+  * Declare compliance with Policy 4.2.1
+
+ -- James McCoy <jamessan@debian.org>  Sun, 30 Sep 2018 09:36:30 -0400
+
+kitty (0.11.3-1) unstable; urgency=medium
+
+  * New upstream release
+  * Register kitty's HTML docs with doc-base
+  * lintian: Add ${misc:Depends} to kitty-terminfo
+
+ -- James McCoy <jamessan@debian.org>  Sun, 15 Jul 2018 08:55:48 -0400
+
+kitty (0.11.2-3) unstable; urgency=medium
+
+  * Avoid stripping PayPal pixel when not building docs
+  * Declare compliance with Policy 4.1.5, no changes needed
+
+ -- James McCoy <jamessan@debian.org>  Wed, 04 Jul 2018 19:42:34 -0400
+
+kitty (0.11.2-2) unstable; urgency=medium
+
+  * Move python3-sphinx to Build-Depends, since arch builds also build docs.
+
+ -- James McCoy <jamessan@debian.org>  Wed, 04 Jul 2018 18:05:21 -0400
+
+kitty (0.11.2-1) unstable; urgency=medium
+
+  * New upstream release
+    + Lenna image removed
+    + Accepts -T to set the terminal's title
+  * Update copyright for new release
+  * Replace manual doc generation with upstream's docs target
+  * Install example kitty.conf from new location
+  * Enable dh sphinxdoc addon
+  * lintian:
+    + Remove PayPal tracking pixel from support.html
+    + Disable the "Fork me" ribbon
+  * Add kitty as an alternative for x-terminal-emulator. (Closes: #900704)
+
+ -- James McCoy <jamessan@debian.org>  Wed, 04 Jul 2018 14:02:55 -0400
+
+kitty (0.10.1-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- James McCoy <jamessan@debian.org>  Wed, 30 May 2018 22:17:18 -0400
+
+kitty (0.9.1-1) unstable; urgency=medium
+
+  [ upstream ]
+  * Fix build failures related to unsigned char or big-endian platforms.
+    (Closes: #896099)
+  * New kitten for performing/viewing diffs
+  * Output GL version when running with --debug-gl (to help with #897381)
+
+  [ James McCoy ]
+  * rules:
+    + Override upstream's CFLAGS instead of augmenting them
+    + Export CPPFLAGS independently, now that upstream's buildsystem
+      explicitly handles them
+  * Add a watch file
+  * Update d/copyright for 0.9.1
+  * control:
+    + Add libx11-xcb-dev to Build-Depends instead of relying on it implicitly
+      being installed
+    * Recommend kitty-doc from kitty package so documentation is typically
+      available
+  * Convert asciidoc files into html documentation (Closes: #897003)
+    + Add asciidoctor to Build-Depends-Indep
+    + Create new kitty-doc package
+
+ -- James McCoy <jamessan@debian.org>  Mon, 07 May 2018 22:54:49 -0400
+
+kitty (0.9.0-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #886311)
+
+ -- James McCoy <jamessan@debian.org>  Wed, 18 Apr 2018 23:46:22 -0400

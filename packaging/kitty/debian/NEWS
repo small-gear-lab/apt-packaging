@@ -1,0 +1,11 @@
+kitty (0.31.0-4) unstable; urgency=medium
+
+    Text rendering change: Use sRGB correct linear gamma blending for nicer
+    font rendering and better color accuracy with transparent windows. To
+    return to the old method for how glyphs are composited, set
+    `text_composition_strategy legacy` in kitty's configuration file. This
+    will make dark text on light backgrounds look thicker and light text on
+    dark backgrounds thinner. It might also make some text appear like the
+    strokes are uneven.
+
+ -- Maytham Alsudany <maytha8thedev@gmail.com>  Mon, 25 Dec 2023 08:32:41 +0800

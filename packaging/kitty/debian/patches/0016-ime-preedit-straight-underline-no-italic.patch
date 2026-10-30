@@ -1,0 +1,26 @@
+Index: kitty-0.49.2/kitty/screen.c
+===================================================================
+--- kitty-0.49.2.orig/kitty/screen.c
++++ kitty-0.49.2/kitty/screen.c
+@@ -5010,17 +5010,13 @@ screen_draw_overlay_line(Screen *self) {
+     self->modes.mIRM = false;
+     Cursor *orig_cursor = self->cursor;
+     self->cursor = &(self->overlay_line.original_line.cursor);
+-    // Mark the pre-edit text as distinct from committed text: italic, with a
+-    // dashed underline in the highlight color. Underline rather than reverse
+-    // video matches what other terminals do (VTE and foot both underline), and
+-    // dashed avoids colliding with the styles applications already use: curly
+-    // for spell checking and straight for hyperlinks. Saved and restored around
+-    // the draw, like the modes above.
++    // Mark the pre-edit text as distinct from committed text: a straight
++    // underline in the highlight color, without italic. Saved and restored
++    // around the draw, like the modes above.
+     const bool orig_italic = self->cursor->sgr.italic;
+     const uint8_t orig_decoration = self->cursor->sgr.decoration;
+     const color_type orig_decoration_fg = self->cursor->sgr.decoration_fg;
+-    self->cursor->sgr.italic = true;
+-    self->cursor->sgr.decoration = 5; // dashed
++    self->cursor->sgr.decoration = 1; // straight
+     self->cursor->sgr.decoration_fg = ((colorprofile_to_color_with_fallback(
+                                             self->color_profile,
+                                             self->color_profile->overridden.highlight_bg,

@@ -1,0 +1,29 @@
+# Register kitty as a handler for specific MIME types
+
+If you want to use kitty as the default handler for a set of MIME types, copy
+/usr/share/doc/kitty/examples/kitty-open.desktop to ~/.local/share/applications/.
+
+“xdg-mime” can be used to query (and adjust) what the default handler is for a
+given MIME type, in case you need to promote/demote kitty-open as the handler.
+
+Note kitty-open may execute files, rather than viewing them, so test the
+behavior with “xdg-open” on trusted files when changing the MIME types that
+kitty is registered for.
+
+# Input Method support
+
+You can enable input of non-Latin characters to the kitty terminal as follows:
+
+1. Install an input method program based on ibus or fcitx5
+2. Place the following file named "kitty" in PATH
+   (e.g., ~/.local/bin or /usr/local/bin)
+3. Make "kitty" script an executable. (`chmod 755 kitty`)
+
+---
+#!/bin/sh -e
+GLFW_IM_MODULE=ibus exec /usr/bin/kitty "$@"
+---
+
+fcitx5 uses the same communication protocol as ibus.  So you use "ibus" even for
+"fcitx5".  Other input method infrastructure such as "fcitx" and "uim" are not
+supported.

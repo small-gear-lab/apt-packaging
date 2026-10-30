@@ -1,0 +1,116 @@
+Source: kitty
+Priority: optional
+Maintainer: Nilesh Patra <nilesh@debian.org>
+Uploaders: Maytham Alsudany <maytham@debian.org>
+Section: x11
+Standards-Version: 4.7.2
+XS-Go-Import-Path: github.com/kovidgoyal/kitty
+Homepage: https://sw.kovidgoyal.net/kitty/
+Vcs-Git: https://salsa.debian.org/debian/kitty.git
+Vcs-Browser: https://salsa.debian.org/debian/kitty
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ golang-any (>= 2:1.26~),
+ fish <!nocheck>,
+ furo <!nodoc>,
+ libcairo2-dev,
+ libdbus-1-dev,
+ libfontconfig-dev,
+ libfreetype-dev,
+ libgl-dev,
+ libglvnd-dev,
+ libharfbuzz-dev,
+ liblcms2-dev,
+ libpng-dev,
+ librsync-dev,
+ libsimde-dev,
+ libssl-dev,
+ libx11-xcb-dev,
+ libxcursor-dev,
+ libxi-dev,
+ libxinerama-dev,
+ libxkbcommon-x11-dev,
+ libxrandr-dev,
+ libxxhash-dev,
+ libwayland-dev [linux-any],
+ locales,
+ locales-all,
+ pkgconf,
+ kitty-slang-compiler (>= 2026.14.1),
+ python3-dev,
+ python3-pil <!nocheck>,
+ python3-sphinx <!nodoc>,
+ python3-sphinx-copybutton <!nodoc>,
+ python3-sphinx-design <!nodoc>,
+ python3-sphinx-inline-tabs <!nodoc>,
+ python3-sphinxext-opengraph <!nodoc>,
+ wayland-protocols [linux-any],
+ zlib1g-dev,
+ zsh <!nocheck>
+
+Package: kitty
+Architecture: any
+Depends:
+ kitty-shell-integration,
+ kitty-terminfo,
+# Loaded with dlopen() for font lookup, so dpkg-shlibdeps cannot see it
+ libfontconfig1,
+# Loaded with dlopen() for systemd scope integration
+ libsystemd0,
+ ${misc:Depends},
+ ${python3:Depends},
+ ${shlibs:Depends},
+Recommends:
+ kitty-doc,
+# To play the "beep" sound for the terminal
+ libcanberra0
+Suggests:
+# For tui kitten
+ imagemagick,
+ fonts-noto-color-emoji,
+# To compile custom shaders
+ slang-compiler
+Provides:
+ x-terminal-emulator
+Built-Using: ${misc:Built-Using},
+             ${simde:Built-Using}
+Description: fast, featureful, GPU based terminal emulator
+ Kitty supports modern terminal features like: graphics, unicode,
+ true-color, OpenType ligatures, mouse protocol, focus tracking, and
+ bracketed paste.
+ .
+ Kitty has a framework for "kittens", small terminal programs that can be used
+ to extend its functionality.
+
+Package: kitty-terminfo
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Description: fast, featureful, GPU based terminal emulator (terminfo file)
+ This package provides the xterm-kitty terminfo definition for the kitty
+ terminal emulator so that it can easily be installed on remote systems.
+
+Package: kitty-shell-integration
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+Description: fast, featureful, GPU based terminal emulator (shell integration files)
+ This package provides Kitty's shell-integration files so that it can easily
+ be installed on remote systems.
+
+Package: kitty-doc
+Architecture: all
+Multi-Arch: foreign
+Section: doc
+Built-Using:
+ ${sphinxdoc:Built-Using},
+Depends:
+ ${misc:Depends},
+ ${sphinxdoc:Depends},
+Description: fast, featureful, GPU based terminal emulator (documentation)
+ This package contains the AsciiDoc/HTML documentation for the kitty terminal
+ emulator.

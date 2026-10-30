@@ -1,0 +1,15 @@
+Description: Ignore deps in vendor dir/ This patch can be removed once we devendor image/integration
+Author: Nilesh Patra <nilesh@debian.org>
+Forwarded: not-needed
+Last-Update: 2024-05-01
+--- a/setup.py
++++ b/setup.py
+@@ -1260,7 +1260,7 @@
+     go = go_cmd()
+     if not go:
+         raise SystemExit('The go tool was not found on this system. Install Go')
+-    required_go_version = subprocess.check_output(go + 'list -f {{.GoVersion}} -m'.split(), env=dict(os.environ, GO111MODULE="on")).decode().strip()
++    required_go_version = subprocess.check_output(go + 'list -f {{.GoVersion}} -m -mod=readonly'.split(), env=dict(os.environ, GO111MODULE="on")).decode().strip()
+     go_version_raw = subprocess.check_output(go + ['version']).decode().strip().split()
+     if go_version_raw[2] != "devel":
+         current_go_version = go_version_raw[2][2:]

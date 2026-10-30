@@ -1,0 +1,10 @@
+# The script is testing to see if the functionality is supported
+bash-term-in-posix-shell '(exec -a' [usr/lib/kitty/shell-integration/ssh/bootstrap-utils.sh:*]
+
+# Ignore the fact that shell integaration scripts aren't executable
+script-not-executable [usr/lib/kitty/shell-integration/bash/kitty.bash]
+script-not-executable [usr/lib/kitty/shell-integration/fish/vendor_conf.d/kitty-shell-integration.fish]
+script-not-executable [usr/lib/kitty/shell-integration/ssh/bootstrap-utils.sh]
+script-not-executable [usr/lib/kitty/shell-integration/ssh/bootstrap.sh]
+script-not-executable [usr/lib/kitty/shell-integration/zsh/kitty-integration]
+script-not-executable [usr/lib/kitty/shell-integration/zsh/kitty.zsh]

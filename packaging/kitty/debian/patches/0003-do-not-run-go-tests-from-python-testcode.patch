@@ -1,0 +1,21 @@
+From: Nilesh Patra <nilesh@debian.org>
+Date: Wed, 8 Nov 2023 14:27:36 +0000
+Subject: Do not run tests inside go testing directory
+Forwarded: no
+
+Use dh-golang's buildsystem to test instead of kitty's upstream system
+
+--- a/kitty_tests/main.py
++++ b/kitty_tests/main.py
+@@ -274,10 +274,7 @@
+         type_check()
+     go_pkgs = reduce_go_pkgs(args.module, args.name)
+     os.environ['ASAN_OPTIONS'] = 'detect_leaks=0'  # ensure subprocesses dont fail because of leak detection
+-    if go_pkgs:
+-        go_proc: 'Optional[GoProc]' = run_go(go_pkgs, args.name)
+-    else:
+-        go_proc = None
++    go_proc = None
+     with env_for_python_tests(report_env):
+         if go_pkgs:
+             if report_env:

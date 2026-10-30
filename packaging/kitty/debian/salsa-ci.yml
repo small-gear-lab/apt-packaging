@@ -1,0 +1,10 @@
+---
+include:
+    - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/salsa-ci.yml
+    - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/pipeline-jobs.yml
+
+# Reproducibility issues in sphinx cause reprotest to fail.
+# Fixed in https://github.com/sphinx-doc/sphinx/pull/11665, waiting for new
+# upstream version and corresponding Debian upload.
+variables:
+    SALSA_CI_DISABLE_REPROTEST: "true"

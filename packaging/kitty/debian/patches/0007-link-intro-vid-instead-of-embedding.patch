@@ -1,0 +1,22 @@
+From: Maytham Alsudany <maytha8thedev@gmail.com>
+Date: Fri, 10 Nov 2023 15:50:00 +0800
+Subject: Link intro video instead of embedding
+Forwarded: not-needed
+
+Removes a privacy breach.
+
+--- a/docs/intro_vid.rst
++++ b/docs/intro_vid.rst
+@@ -1,11 +1,4 @@
+-.. raw:: html
+-
+-    <div id="intro-video-container" class="video-with-timestamps">
+-
+-    <video controls width="640" height="360" poster="_static/poster.png">
+-        <source src="https://download.calibre-ebook.com/videos/kitty.mp4" type="video/mp4">
+-        <source src="https://download.calibre-ebook.com/videos/kitty.webm" type="video/webm">
+-    </video>
++You can watch the introductory video `here <https://download.calibre-ebook.com/videos/kitty.mp4>`_.
+ 
+ .. rst-class:: caption caption-text
+ 

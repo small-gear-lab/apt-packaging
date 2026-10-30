@@ -1,0 +1,24 @@
+From: Maytham Alsudany <maytha8thedev@gmail.com>
+Date: Fri, 10 Nov 2023 16:40:00 +0800
+Subject: Link graphics-protocol image
+Forwarded: not-needed
+
+This eliminates a privacy breach.
+
+--- a/docs/graphics-protocol.rst
++++ b/docs/graphics-protocol.rst
+@@ -18,12 +18,8 @@
+ 
+     kitten icat path/to/some/image.png
+ 
+-You can also see a screenshot with more sophisticated features such as
+-alpha-blending and text over graphics.
+-
+-.. image:: https://user-images.githubusercontent.com/1308621/31647475-1188ab66-b326-11e7-8d26-24b937f1c3e8.png
+-    :alt: Demo of graphics rendering in kitty
+-    :align: center
++You can also see `a screenshot with more sophisticated features such as
++alpha-blending and text over graphics <https://user-images.githubusercontent.com/1308621/31647475-1188ab66-b326-11e7-8d26-24b937f1c3e8.png>`_.
+ 
+ Some applications that use the kitty graphics protocol:
+ 

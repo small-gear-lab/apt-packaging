@@ -1,0 +1,11 @@
+0001-use-usr-bin-env-in-shebang.patch
+0002-replace-changelog-commit-hashes-with-urls.patch
+0004-skip-TestHintMarking.patch
+0005-link-alternate-icons-in-the-faq.patch
+0007-link-intro-vid-instead-of-embedding.patch
+0009-skip-two-tests-on-ppc64.patch
+0010-disable-kitten-update-self-command.patch
+0013-avoid-failing-font-tests-on-ci.patch
+0015-remove-toolchain-directive.patch
+0016-ime-preedit-straight-underline-no-italic.patch
+0017-ime-preedit-mark-cursor-cell.patch

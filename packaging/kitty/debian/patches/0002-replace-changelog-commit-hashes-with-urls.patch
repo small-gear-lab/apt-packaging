@@ -1,0 +1,40 @@
+From: Maytham Alsudany <maytha8thedev@gmail.com>
+Date: Wed, 8 Nov 2023 14:01:35 +0800
+Subject: replace changelog commit hashes with urls
+Forwarded: not-needed
+
+When trying to build the docs, it can't find the commits referenced in the changelog (since this isn't the original kitty repo).
+All references to commits are replaced with links to the commits in GitHub.
+---
+ docs/changelog.rst | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+--- a/docs/changelog.rst
++++ b/docs/changelog.rst
+@@ -4222,7 +4222,7 @@
+ - A :doc:`new kitten <kittens/panel>` to create dock panels on X11 desktops
+   showing the output from arbitrary terminal programs.
+ 
+-- Reduce data sent to the GPU per render by 30% (:commit:`8dea5b3`)
++- Reduce data sent to the GPU per render by 30% (`8dea5b3 <https://github.com/kovidgoyal/kitty/commit/8dea5b3>`_)
+ 
+ - Implement changing the font size for individual top level (OS) windows
+   (:iss:`408`)
+@@ -4337,7 +4337,7 @@
+ - Implement support for the SGR *faint* escape code to make text blend
+   into the background (:iss:`446`).
+ 
+-- Make the hints kitten a little smarter (:commit:`ad1109b`)
++- Make the hints kitten a little smarter (`ad1109b <https://github.com/kovidgoyal/kitty/commit/ad1109b>`_)
+   so that URLs that stretch over multiple lines are detected. Also improve
+   detection of surrounding brackets/quotes.
+ 
+@@ -4349,7 +4349,7 @@
+ 
+ - Expand environment variables in config file include directives
+ 
+-- Allow programs running in kitty to read/write from the clipboard (:commit:`889ca77`).
++- Allow programs running in kitty to read/write from the clipboard (`889ca77 <https://github.com/kovidgoyal/kitty/commit/889ca77>`_).
+   By default only writing is allowed. This feature is supported in many
+   terminals, search for `OSC 52 clipboard` to find out more about using it.
+ 

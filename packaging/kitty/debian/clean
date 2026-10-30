@@ -1,0 +1,9 @@
+docs/binary.rst
+docs/build.rst
+docs/quickstart.rst
+build/
+debian/fakehome/
+debian/fakeruntime/
+docs/_build/
+linux-package/
+vendor/

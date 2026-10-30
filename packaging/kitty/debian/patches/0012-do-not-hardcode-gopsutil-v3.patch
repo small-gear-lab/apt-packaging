@@ -1,0 +1,58 @@
+From: Guillem Jover <gjover@sipwise.com>
+Date: Tue, 01 Oct 2024 23:09:48 +0200
+Subject: Do not hardcode gopsutil v4
+
+We can use v4 when no version suffix is used. Remove it so that we can
+upgrade the gopsutil modules from v4 to v4 in Debian.
+
+---
+ tools/config/api.go  |    2 +-
+ tools/tui/run.go     |    2 +-
+ tools/tui/tmux.go    |    2 +-
+ tools/utils/paths.go |    2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+--- a/tools/config/api.go
++++ b/tools/config/api.go
+@@ -21,7 +21,7 @@
+ 	"github.com/kovidgoyal/kitty"
+ 	"github.com/kovidgoyal/kitty/tools/utils"
+ 
+-	"github.com/shirou/gopsutil/v4/process"
++	"github.com/shirou/gopsutil/process"
+ 	"golang.org/x/sys/unix"
+ )
+ 
+--- a/tools/tui/run.go
++++ b/tools/tui/run.go
+@@ -13,7 +13,7 @@
+ 	"strings"
+ 	"sync"
+ 
+-	"github.com/shirou/gopsutil/v4/process"
++	"github.com/shirou/gopsutil/process"
+ 	"golang.org/x/sys/unix"
+ 
+ 	"github.com/kovidgoyal/kitty/tools/config"
+--- a/tools/tui/tmux.go
++++ b/tools/tui/tmux.go
+@@ -13,7 +13,7 @@
+ 	"sync"
+ 	"time"
+ 
+-	"github.com/shirou/gopsutil/v4/process"
++	"github.com/shirou/gopsutil/process"
+ 	"golang.org/x/sys/unix"
+ 
+ 	"github.com/kovidgoyal/kitty/tools/utils"
+--- a/tools/utils/paths.go
++++ b/tools/utils/paths.go
+@@ -20,7 +20,7 @@
+ 	"syscall"
+ 	"unicode/utf8"
+ 
+-	"github.com/shirou/gopsutil/v4/process"
++	"github.com/shirou/gopsutil/process"
+ 	"golang.org/x/sys/unix"
+ )
+ 

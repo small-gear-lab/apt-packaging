@@ -1,0 +1,34 @@
+Description: Disable two tests that are failing on ppc64el
+Author: Nilesh Patra <nilesh@debian.org>
+Forwarded: https://github.com/kovidgoyal/kitty/issues/6636
+Last-Update: 2023-11-17
+--- a/kitty_tests/file_transmission.py
++++ b/kitty_tests/file_transmission.py
+@@ -3,9 +3,11 @@
+ 
+ 
+ import os
++import platform
+ import shutil
+ import stat
+ import tempfile
++import unittest
+ from collections import namedtuple
+ from contextlib import contextmanager
+ from pathlib import Path
+@@ -473,6 +475,7 @@
+         os.remove(os.path.join(dest, 'sym'))
+         shutil.rmtree(os.path.join(dest, 'sub'))
+ 
++    @unittest.skipIf(platform.machine() == 'ppc64le', "Failing test on ppc64el")
+     def test_transfer_receive(self):
+         self.direction_receive = True
+         self.basic_transfer_tests()
+@@ -505,6 +508,7 @@
+         self.setup_dirs()
+         self.mirror_test(self.kitty_home, self.kitten_home)
+ 
++    @unittest.skipIf(platform.machine() == 'ppc64le', "Failing test on ppc64el")
+     def test_transfer_send(self):
+         self.basic_transfer_tests()
+         src = os.path.join(self.tdir, 'src')
