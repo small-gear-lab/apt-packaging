@@ -36,11 +36,21 @@ Go code linked into kitty's Go programs (kitten): the Go modules in kitty's vend
   packaging/kitty/gen-vendor-licenses.py copies each module's license files into the package
   (/usr/share/doc/kitty/vendor-licenses/) and writes a paragraph for each into the package's copyright file.
 
+Rust crates linked into librustls and librustls_quic (rustls-ffi, rustls-ffi-quic): 22 for rustls-ffi 0.15.7. Their
+  code is not in this repository. When the package is built, packaging/rustls-ffi/gen-crate-licenses.py copies each
+  crate's license files into the package (/usr/share/doc/librustls*/vendor-licenses/) and writes a paragraph for each
+  into the package's copyright file; it stops for a crate whose license it cannot settle.
+
 Software that the recipes download and build, under its own license and not included here:
 
   curl           https://curl.se/                         curl license
   kitty          https://github.com/kovidgoyal/kitty     GPL-3
   rustls-ffi     https://github.com/rustls/rustls-ffi     Apache-2.0 OR ISC OR MIT
+  rustls-ffi-quic  https://github.com/small-gear-lab/rustls-ffi-quic
+                 rustls-ffi with a QUIC API; Apache-2.0 OR ISC OR MIT, as rustls-ffi
+  ngtcp2         https://github.com/ngtcp2/ngtcp2        MIT
+                 packaging/ngtcp2-crypto-rustls builds Ubuntu's ngtcp2 source for crypto/shared.c, and its
+                 own src/, which is derived from ngtcp2's crypto/quictls/quictls.c (MIT, the ngtcp2 contributors).
   Slang          https://github.com/shader-slang/slang    Apache-2.0 WITH LLVM-exception
                  packaging/kitty-slang-compiler/build.sh installs slangc and the libraries it loads from
                  the official release, unmodified, together with the release's LICENSE and LICENSES/.

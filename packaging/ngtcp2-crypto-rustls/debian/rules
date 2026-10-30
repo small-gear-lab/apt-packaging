@@ -1,0 +1,40 @@
+#!/usr/bin/make -f
+# The helper is one C file of ours (crypto/rustls/) and ngtcp2's crypto/shared.c, which every ngtcp2 crypto
+# helper has. ngtcp2's own build is not used: it knows no Rustls.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/buildflags.mk
+
+SO = libngtcp2_crypto_rustls
+SOVER = 0
+NGTCP2_VERSION := $(shell pkgconf --modversion libngtcp2)
+PC_CFLAGS := $(shell pkgconf --cflags libngtcp2 rustls-quic)
+PC_LIBS := $(shell pkgconf --libs libngtcp2 rustls-quic)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -Wall -Wextra -Icrypto -Ilib -Icrypto/rustls $(PC_CFLAGS) \
+		-c crypto/shared.c -o crypto/shared.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -Wall -Wextra -Icrypto -Ilib -Icrypto/rustls $(PC_CFLAGS) \
+		-c crypto/rustls/ngtcp2_crypto_rustls.c -o crypto/rustls/ngtcp2_crypto_rustls.o
+	$(CC) -shared $(LDFLAGS) -Wl,-soname,$(SO).so.$(SOVER) -o $(SO).so.$(SOVER).0.0 \
+		crypto/shared.o crypto/rustls/ngtcp2_crypto_rustls.o $(PC_LIBS) -lcrypto
+	sed -e 's|@VERSION@|$(NGTCP2_VERSION)|' -e 's|@MULTIARCH@|$(DEB_HOST_MULTIARCH)|' \
+		debian/$(SO).pc.in > $(SO).pc
+
+override_dh_auto_install:
+	install -D -m 644 $(SO).so.$(SOVER).0.0 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(SO).so.$(SOVER).0.0
+	ln -s $(SO).so.$(SOVER).0.0 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(SO).so.$(SOVER)
+	ln -s $(SO).so.$(SOVER) debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/$(SO).so
+	install -D -m 644 $(SO).pc debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/$(SO).pc
+	install -D -m 644 crypto/rustls/ngtcp2_crypto_rustls.h debian/tmp/usr/include/ngtcp2/ngtcp2_crypto_rustls.h
+
+override_dh_auto_test:
+
+override_dh_auto_clean:
+	rm -f crypto/shared.o crypto/rustls/*.o $(SO).so* $(SO).pc

@@ -1,0 +1,10 @@
+ngtcp2-crypto-rustls (1.16.0-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of the ngtcp2 crypto helper for Rustls, which lets
+    ngtcp2 (and curl's HTTP/3) use Rustls through rustls-ffi-quic.
+  * Built from Ubuntu's ngtcp2 1.16.0 source (crypto/shared.c is the part
+    that every ngtcp2 crypto helper shares) and crypto/rustls/, which is
+    derived from the quictls helper: its packet protection uses OpenSSL's
+    libcrypto, its TLS part calls librustls_quic.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 30 Oct 2026 19:00:00 +0900

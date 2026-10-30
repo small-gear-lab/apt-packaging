@@ -1,0 +1,11 @@
+prefix=/usr
+libdir=${prefix}/lib/@MULTIARCH@
+includedir=${prefix}/include
+
+Name: libngtcp2_crypto_rustls
+Description: ngtcp2 crypto helper for Rustls
+Version: @VERSION@
+Requires: libngtcp2 rustls-quic
+Requires.private: libcrypto
+Libs: -L${libdir} -lngtcp2_crypto_rustls
+Cflags: -I${includedir}
