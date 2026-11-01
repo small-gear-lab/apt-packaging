@@ -82,6 +82,31 @@ itself has nothing specific to 26.04.
 | `zsh: no such file or directory: env -i ...` | a multi-word command in a variable (`$E`) is not split by zsh | write the command out |
 | a rebuild with a new `debian/changelog` version redoes everything | `dpkg-buildpackage` without `-nc` runs `bazel clean` | `build.sh` uses `-nc` and keeps `debian/.pc` |
 
+## Installed on this machine (2026-11-01)
+
+Built twice: the first run (no version suffix, Bazel 9.3.0 from a downloaded binary) only proved that the recipe
+works; the debs of `3.35.6354.2+dfsg-2.2build1.1~smallgearlab1` were built with `build.sh build` and the Bazel 9.3.1
+from apt (12 minutes, Bazel's cache served part of it). They went into `resolute` (the `stable` suite) with
+`sgl-reprepro includedeb resolute`, and were installed with apt, which replaced the six installed packages
+(`mozc-data`, `mozc-server`, `mozc-utils-gui`, `fcitx5-mozc`, `fcitx-mozc-data`, `ibus-mozc`; nothing removed):
+
+```
+sudo apt-get install mozc-data mozc-server mozc-utils-gui fcitx5-mozc fcitx-mozc-data ibus-mozc
+```
+
+`apt history`: 346 build dependencies, 347 `bazel`, 348 the Mozc upgrade (2.29.5160.102 -> 3.35.6354.2). To go
+back to Ubuntu's Mozc: `sudo apt history-undo 348` (the UT dictionaries are lost then).
+
+A running `mozc_server` keeps the old, deleted binary after the upgrade; restart it and fcitx5 with the
+environment that connects fcitx5 to Weston (see the wslg-weston-rail docs):
+
+```
+pkill -x mozc_server; unset GLFW_IM_MODULE; WAYLAND_DISPLAY=wayland-0 fcitx5 -d --replace
+```
+
+Checked by hand in kitty: Japanese input works, entries that only the UT dictionaries have (titles from
+Wikipedia) are offered, and the suggest list shows (so Mozc's presentation mode is off).
+
 ## Updating
 
 1. New Mozc tag: edit `REV` (`mozc`, and `mozc-deb` if its changelog moved), `build.sh fetch`, `build.sh dict`.
