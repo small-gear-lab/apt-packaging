@@ -1,0 +1,5 @@
+# What the Mozc debs are built from (build.sh fetch reads this). The UT dictionaries themselves are not pinned:
+# build.sh dict records what it got in dicts.rev, and docs/mozc-build.md keeps the list for the current build.
+mozc 0136c35782536cb43d710575c311cd4185982738
+mozc-deb ca112925d2ea01f96095d748502814b18fbed9f4
+merge-ut-dictionaries 640844881690e877d0e54dff024edb8ec7b77290

@@ -6,7 +6,7 @@ not a general-purpose tool.
 
 | Where | What |
 |---|---|
-| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`) |
+| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `mozc-build.md`) |
 | `packaging/` | one directory per package: `build.sh` and the `debian/` tree it builds from |
 | `pubkeys/` | the public key that signs the repository |
 | `repos/small-gear-lab/conf/` | reprepro's configuration (the generated `db/`, `dists/` and `pool/` are not kept) |
@@ -23,6 +23,9 @@ Packages built here:
   <https://github.com/small-gear-lab/rustls-ffi-quic>, and `ngtcp2-crypto-rustls`, the ngtcp2 helper that uses
   it. Both are what the Rustls flavour of curl needs for HTTP/3. Also in `resolute-testing`.
 - `rustls-ffi` 0.15.7 as upstream has it (not used by the packages above)
+- `mozc` 3.35.6354 with the UT dictionaries merged into the system dictionary (`mozc-server`, `mozc-data`,
+  `mozc-utils-gui`, `fcitx5-mozc`, `fcitx-mozc-data`, `ibus-mozc`, `emacs-mozc`, `emacs-mozc-bin`), built with Bazel from
+  the `debian/` of phoepsilonix/mozc-deb; no fcitx4 package. Ubuntu has 2.29 without UT dictionaries
 
 Start with `docs/README.md`.
 

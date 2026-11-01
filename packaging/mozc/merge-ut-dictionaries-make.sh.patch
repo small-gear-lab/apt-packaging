@@ -1,0 +1,28 @@
+diff --git a/src/merge/make.sh b/src/merge/make.sh
+old mode 100644
+new mode 100755
+index d54350f..6b85ada
+--- a/src/merge/make.sh
++++ b/src/merge/make.sh
+@@ -3,16 +3,16 @@
+ # Author: UTUMI Hirosi (utuhiro78 at yahoo dot co dot jp)
+ # License: Apache License, Version 2.0
+ 
+-#alt_cannadic="true"
+-#edict2="true"
++alt_cannadic="true"
++edict2="true"
+ jawiki="true"
+-#neologd="true"
++neologd="true"
+ personal_names="true"
+ place_names="true"
+-#skk_jisyo="true"
++skk_jisyo="true"
+ sudachidict="true"
+ 
+-#generate_latest="true"
++generate_latest="false"
+ 
+ rm -rf mozcdic-ut*
+ 
