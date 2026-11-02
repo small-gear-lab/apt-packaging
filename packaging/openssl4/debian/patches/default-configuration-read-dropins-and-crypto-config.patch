@@ -1,0 +1,26 @@
+From 3776c4a41e268d7733e3476743d8104e48477c52 Mon Sep 17 00:00:00 2001
+From: Adrien Nader <adrien.nader@canonical.com>
+Date: Mon, 1 Jul 2024 16:49:06 +0200
+Subject: [PATCH] configuration: read /etc/ssl/openssl.conf.d dropin
+Forwarded: not-needed
+Last-Update: 2026-10-12
+
+Append two .include directives to the default configuration in order to
+integrate with the crypto-config framework and to allow easier
+configuration by sysadmins.
+
+UPDATE: only include /etc/ssl/openssl.conf.d, since crypto-config was
+abandoned in Ubuntu.
+
+---
+ apps/openssl.cnf | 3 +++
+ 1 file changed, 3 insertions(+)
+
+--- a/apps/openssl.cnf
++++ b/apps/openssl.cnf
+@@ -393,3 +393,5 @@
+ # Certificate revocation
+ cmd = rr
+ oldcert = $insta::certout # insta.cert.pem
++
++.include /etc/ssl/openssl.conf.d

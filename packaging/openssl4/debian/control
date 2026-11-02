@@ -1,0 +1,31 @@
+Source: openssl
+Build-Depends: debhelper-compat (= 13), dpkg-dev (>= 1.22.5), libzstd-dev, zlib1g-dev, libjitterentropy3-dev
+Section: utils
+Priority: optional
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+XSBC-Original-Maintainer: Debian OpenSSL Team <pkg-openssl-devel@alioth-lists.debian.net>
+Uploaders: Christoph Martin <christoph.martin@uni-mainz.de>, Kurt Roeckx <kurt@roeckx.be>, Sebastian Andrzej Siewior <sebastian@breakpoint.cc>
+Standards-Version: 4.7.3
+Vcs-Browser: https://salsa.debian.org/debian/openssl
+Vcs-Git: https://salsa.debian.org/debian/openssl.git
+Homepage: https://openssl-library.org
+Rules-Requires-Root: no
+
+Package: libssl4
+Section: libs
+Architecture: any
+Multi-Arch: same
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Secure Sockets Layer toolkit - shared libraries
+ This package is part of the OpenSSL project's implementation of the SSL
+ and TLS cryptographic protocols for secure communication over the
+ Internet.
+ .
+ It provides the libssl and libcrypto shared libraries (libssl.so.4 and
+ libcrypto.so.4).
+ .
+ This is a local rebuild of OpenSSL 4 for Ubuntu 26.04, which ships OpenSSL 3.5.
+ It installs next to libssl3t64 and carries nothing else: no openssl command,
+ no development files and no providers, so that the packages of OpenSSL 3.5
+ stay untouched.

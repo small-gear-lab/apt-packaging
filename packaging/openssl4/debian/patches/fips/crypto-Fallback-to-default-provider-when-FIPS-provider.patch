@@ -1,0 +1,211 @@
+From: Joao Gomes <joao.gomes@canonical.com>
+Date: Wed, 4 Mar 2026 15:18:48 +0000
+Subject: crypto: Fallback to default provider when FIPS provider is missing.
+
+When the system has FIPS enabled but the provider is not present in the
+system, fallback to the default provider and let the caller know the
+library is not in FIPS mode.  This allows the system to continue
+operating while the caller is clearly notified of the issue.
+
+Bug-Ubuntu: https://launchpad.net/bugs/2141933
+Forwarded: not-needed
+---
+ crypto/fips_mode.c           | 39 ++++++++++++++++++++++++++++++++++++++-
+ crypto/fips_mode.h           |  1 +
+ crypto/provider_core.c       | 25 +++++++++++++++++++++++++
+ crypto/provider_predefined.c |  2 +-
+ test/fips_auto_enable_test.c |  6 +++---
+ 5 files changed, 68 insertions(+), 5 deletions(-)
+
+--- a/crypto/fips_mode.c
++++ b/crypto/fips_mode.c
+@@ -6,16 +6,37 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <unistd.h>
++#include <openssl/crypto.h>
+ #include "fips_mode.h"
++#define ALLOW_RUN_ONCE_IN_FIPS
++#include "internal/thread_once.h"
+ 
+ #define FIPS_MODE_SWITCH_FILE "/proc/sys/crypto/fips_enabled"
+ #define FIPS_MODE_USERSPACE_FILE "/etc/ubuntu-fips"
+ 
+ static int fips_mode;
+ 
++static CRYPTO_RWLOCK *fips_lock = NULL;
++static CRYPTO_ONCE fips_lock_init = CRYPTO_ONCE_STATIC_INIT;
++
++DEFINE_RUN_ONCE_STATIC(do_fips_lock_init)
++{
++ fips_lock = CRYPTO_THREAD_lock_new();
++ return fips_lock != NULL;
++}
++
+ int ossl_fips_mode(void)
+ {
+-    return fips_mode;
++  int ret = 0;
++
++  if (!RUN_ONCE(&fips_lock_init, do_fips_lock_init))
++    return ret;
++
++  CRYPTO_THREAD_read_lock(fips_lock);
++  ret = fips_mode;
++  CRYPTO_THREAD_unlock(fips_lock);
++
++  return ret;
+ }
+ 
+ void ossl_init_fips(void)
+@@ -25,6 +46,9 @@
+     char c;
+     int fd;
+ 
++    if (!RUN_ONCE(&fips_lock_init, do_fips_lock_init))
++      return;
++
+     if ((v = secure_getenv("OPENSSL_FORCE_FIPS_MODE")) != NULL) {
+         fips_mode = strcmp(v, "0") == 0 ? FIPS_MODE_DISABLED : FIPS_MODE_KERNEL_ENTROPY;
+         return;
+@@ -58,3 +82,16 @@
+ 
+     fips_mode = FIPS_MODE_DISABLED;
+ }
++
++void ossl_set_fips(int mode)
++{
++  if (mode != 0 && mode != 1)
++    return;
++
++  if (!RUN_ONCE(&fips_lock_init, do_fips_lock_init))
++    return;
++
++  CRYPTO_THREAD_write_lock(fips_lock);
++  fips_mode = mode;
++  CRYPTO_THREAD_unlock(fips_lock);
++}
+--- a/crypto/fips_mode.h
++++ b/crypto/fips_mode.h
+@@ -19,5 +19,6 @@
+ 
+ int ossl_fips_mode(void);
+ void ossl_init_fips(void);
++void ossl_set_fips(int mode);
+ 
+ #endif
+--- a/crypto/provider_core.c
++++ b/crypto/provider_core.c
+@@ -19,6 +19,7 @@
+ #include "crypto/decoder.h" /* ossl_decoder_store_cache_flush */
+ #include "crypto/encoder.h" /* ossl_encoder_store_cache_flush */
+ #include "crypto/store.h" /* ossl_store_loader_store_cache_flush */
++#include "fips_mode.h"
+ #endif
+ #include "crypto/evp.h" /* evp_method_store_cache_flush */
+ #include "crypto/rand.h"
+@@ -1444,6 +1445,9 @@
+     int activated_fallback_count = 0;
+     int ret = 0;
+     const OSSL_PROVIDER_INFO *p;
++#ifndef FIPS_MODULE
++    int fips_is_active = 0;
++#endif
+ 
+     if (!CRYPTO_THREAD_read_lock(store->lock))
+         return 0;
+@@ -1470,6 +1474,11 @@
+         if (!p->is_fallback)
+             continue;
+ 
++#ifndef FIPS_MODULE
++        if (fips_is_active == 1 &&
++            strcmp(p->name, "default") == 0)
++          continue;
++#endif
+         for (i = 0; i < store->numprovinfo; info++, i++) {
+             if (strcmp(info->name, p->name) != 0)
+                 continue;
+@@ -1497,6 +1506,18 @@
+          */
+         if (provider_activate(prov, 0, 0) < 0) {
+             ossl_provider_free(prov);
++#ifndef FIPS_MODULE
++            if (strcmp(p->name, "fips") == 0 &&
++                ossl_fips_mode() != FIPS_MODE_DISABLED) {
++              fprintf(stderr, "Failed to activate \"fips\" provider.\n");
++              fprintf(stderr, "Falling back to \"default\" provider.\n");
++              fprintf(stderr, "Library will not be in FIPS mode.\n");
++              ossl_set_fips(FIPS_MODE_DISABLED);
++              evp_default_properties_enable_fips_int(store->libctx, 0, 0);
++              continue;
++            }
++#endif
++
+             goto err;
+         }
+         prov->store = store;
+@@ -1505,6 +1526,10 @@
+             goto err;
+         }
+         activated_fallback_count++;
++#ifndef FIPS_MODULE
++        if (strcmp(p->name, "fips") == 0)
++          fips_is_active = 1;
++#endif
+     }
+ 
+     if (activated_fallback_count > 0) {
+@@ -1513,10 +1538,12 @@
+     }
+ err:
+     CRYPTO_THREAD_unlock(store->lock);
++#ifndef FIPS_MODULE
+     if (!ret)
+         fprintf(stderr, "While loading \"%s\" provider: %s\n",
+             (p != NULL ? p->name : "<unknown>"),
+             ERR_error_string(ERR_peek_last_error(), NULL));
++#endif
+     return ret;
+ }
+ 
+--- a/crypto/provider_predefined.c
++++ b/crypto/provider_predefined.c
+@@ -38,7 +38,7 @@
+ const OSSL_PROVIDER_INFO fips_providers[] = {
+     { "fips", NULL, NULL, NULL, 1 },
+     { "base", NULL, ossl_base_provider_init, NULL, 1 },
+-    { "default", NULL, ossl_default_provider_init, NULL, 0 },
++    { "default", NULL, ossl_default_provider_init, NULL, 1 },
+     { "null", NULL, ossl_null_provider_init, NULL, 0 },
+     { NULL, NULL, NULL, NULL, 0 }
+ };
+--- a/test/fips_auto_enable_test.c
++++ b/test/fips_auto_enable_test.c
+@@ -20,7 +20,7 @@
+     OSSL_LIB_CTX *libctx = NULL;
+     EVP_MD *sha256 = NULL;
+     int is_fips_enabled, fips_loaded, default_loaded;
+-    const char *prov_name, *expected_prov_name = fips ? "fips" : "default";
++    const char *prov_name, *expected_prov_name = (fips && !badfips) ? "fips" : "default";
+     int testresult = 0;
+ 
+     if (context) {
+@@ -34,7 +34,7 @@
+         goto err;
+ 
+     sha256 = EVP_MD_fetch(libctx, "SHA-256", NULL);
+-    if (!fips || !badfips) {
++    if (!fips || badfips) {
+         if (!TEST_ptr(sha256))
+             goto err;
+ 
+@@ -48,7 +48,7 @@
+     default_loaded = OSSL_PROVIDER_available(libctx, "default");
+ 
+     if (!TEST_int_eq(fips_loaded, fips && !badfips) ||
+-        !TEST_int_eq(default_loaded, !fips && !badfips))
++        !TEST_int_eq(default_loaded, !fips || badfips))
+         goto err;
+ 
+     testresult = 1;

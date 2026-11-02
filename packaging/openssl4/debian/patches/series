@@ -1,0 +1,18 @@
+debian-targets.patch
+man-section.patch
+Configure-allow-to-enable-ktls-if-target-does-not-start-w.patch
+
+# Ubuntu patches
+
+default-configuration-read-dropins-and-crypto-config.patch
+regex_match_ecp_nistp521-ppc64.patch
+
+# Ubuntu FIPS patches
+fips/crypto-Add-kernel-FIPS-mode-detection.patch
+fips/crypto-Automatically-use-the-FIPS-provider-when-the-kerne.patch
+fips/apps-speed-Omit-unavailable-algorithms-in-FIPS-mode.patch
+fips/apps-pass-propquery-arg-to-the-libctx-DRBG-fetches.patch
+fips/test-Ensure-encoding-runs-with-the-correct-context-during.patch
+fips/two-defines-for-fips-in-libssl-dev-headers.patch
+fips/crypto-add-userspace-fips-mode-detection.patch
+fips/crypto-Fallback-to-default-provider-when-FIPS-provider.patch

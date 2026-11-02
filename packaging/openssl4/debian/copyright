@@ -1,0 +1,40 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: OpenSSL
+Source: https://www.openssl.org
+
+Files: *
+Copyright: 1995-2026, The OpenSSL Project Authors
+License: Apache-2.0
+
+License: Apache-2.0
+ Licensed under the Apache License 2.0 (the "License").  You may not use
+ this file except in compliance with the License.  You can obtain a copy
+ in the file LICENSE in the source distribution or at
+ https://www.openssl.org/source/license.html
+ .
+ On Debian systems, the complete text of the Apache 2.0 License
+ can be found in `/usr/share/common-licenses/Apache-2.0'
+
+Files: debian/*
+Copyright: Christoph Martin, Kurt Roeckx, Sebastian Andrzej Siewior
+License: Apache-2.0
+
+Files: external/perl/Text-Template-1.56/*
+Copyright: 2013, Mark Jason Dominus <mjd@cpan.org>.
+License: Artistic or GPL-1+
+
+License: Artistic
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the Artistic License, which comes with Perl.
+ .
+ On Debian systems, the complete text of the Artistic License can be
+ found in `/usr/share/common-licenses/Artistic'.
+
+License: GPL-1+
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 1, or (at your option)
+ any later version.
+ .
+ On Debian systems, the complete text of version 1 of the GNU General
+ Public License can be found in `/usr/share/common-licenses/GPL-1'.

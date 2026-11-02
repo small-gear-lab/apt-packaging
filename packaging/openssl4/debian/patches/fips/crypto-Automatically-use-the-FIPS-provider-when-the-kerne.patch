@@ -1,0 +1,472 @@
+From bad1e625197d002a3588723f81b92b3349baef17 Mon Sep 17 00:00:00 2001
+From: Chris Coulson <chris.coulson@canonical.com>
+Date: Fri, 21 Jun 2024 13:58:24 +0200
+Subject: [PATCH] crypto: Automatically use the FIPS provider when the kernel
+ is booted in FIPS mode
+
+Forwarded: no
+Applied-Upstream: no
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/openssl/+bug/2056593
+
+This automatically configures all library contexts to use the FIPS provider when
+the kernel is booted in FIPS mode by:
+- Setting "fips=yes" as the default property for algorithm fetches
+- Loading and activating the FIPS provider as the fallback provider.
+
+If applications load providers via a configuration either because the default
+configuration is modified or they override the default configuration, this
+disables loading of the fallback providers. In this case, the configuration
+must load the FIPS provider when FIPS mode is enabled, else algorithm fetches
+will fail
+
+Applications can choose to use non-FIPS approved algorithms by specifying the
+"-fips" or "fips=no" property for algorithm fetches and loading the default
+provider.
+---
+ crypto/context.c                              |   5 +
+ crypto/provider_core.c                        |   4 +-
+ crypto/provider_local.h                       |   2 +-
+ crypto/provider_predefined.c                  |  25 ++++-
+ doc/man3/EVP_set_default_properties.pod       |   3 +-
+ doc/man5/config.pod                           |   8 +-
+ doc/man7/OSSL_PROVIDER-default.pod            |   7 +-
+ doc/man7/fips_module.pod                      |  15 +++
+ .../ossl-guide-libraries-introduction.pod     |  28 ++++-
+ test/build.info                               |   6 +-
+ test/fips_auto_enable_test.c                  | 106 ++++++++++++++++++
+ test/recipes/04-test_auto_fips_mode.t         |  50 +++++++++
+ test/recipes/04-test_auto_fips_mode/off       |   1 +
+ test/recipes/04-test_auto_fips_mode/on        |   1 +
+ test/run_tests.pl                             |   1 +
+ 15 files changed, 246 insertions(+), 16 deletions(-)
+ create mode 100644 test/fips_auto_enable_test.c
+ create mode 100644 test/recipes/04-test_auto_fips_mode.t
+ create mode 100644 test/recipes/04-test_auto_fips_mode/off
+ create mode 100644 test/recipes/04-test_auto_fips_mode/on
+
+--- a/crypto/context.c
++++ b/crypto/context.c
+@@ -260,6 +260,11 @@
+     ctx->comp_methods = ossl_load_builtin_compressions();
+ #endif
+ 
++#if !defined(FIPS_MODULE)
++    if (ossl_fips_mode() == 1 && !evp_default_properties_enable_fips_int(ctx, 1, 0))
++        goto err;
++#endif
++
+     return 1;
+ 
+ err:
+--- a/crypto/provider_core.c
++++ b/crypto/provider_core.c
+@@ -543,7 +543,7 @@
+         int chosen = 0;
+ 
+         /* Check if this is a predefined builtin provider */
+-        for (p = ossl_predefined_providers; p->name != NULL; p++) {
++        for (p = ossl_predefined_providers(); p->name != NULL; p++) {
+             if (strcmp(p->name, name) != 0)
+                 continue;
+             /* These compile-time templates always have NULL parameters */
+@@ -1461,7 +1461,7 @@
+         return 1;
+     }
+ 
+-    for (p = ossl_predefined_providers; p->name != NULL; p++) {
++    for (p = ossl_predefined_providers(); p->name != NULL; p++) {
+         OSSL_PROVIDER *prov = NULL;
+         OSSL_PROVIDER_INFO *info = store->provinfo;
+         STACK_OF(INFOPAIR) *params = NULL;
+@@ -1513,6 +1513,10 @@
+     }
+ err:
+     CRYPTO_THREAD_unlock(store->lock);
++    if (!ret)
++        fprintf(stderr, "While loading \"%s\" provider: %s\n",
++            (p != NULL ? p->name : "<unknown>"),
++            ERR_error_string(ERR_peek_last_error(), NULL));
+     return ret;
+ }
+ 
+--- a/crypto/provider_local.h
++++ b/crypto/provider_local.h
+@@ -23,7 +23,7 @@
+     unsigned int is_fallback : 1;
+ } OSSL_PROVIDER_INFO;
+ 
+-extern const OSSL_PROVIDER_INFO ossl_predefined_providers[];
++const OSSL_PROVIDER_INFO *ossl_predefined_providers(void);
+ 
+ void ossl_provider_info_clear(OSSL_PROVIDER_INFO *info);
+ int ossl_provider_info_add_to_store(OSSL_LIB_CTX *libctx,
+--- a/crypto/provider_predefined.c
++++ b/crypto/provider_predefined.c
+@@ -9,6 +9,9 @@
+ 
+ #include <openssl/core.h>
+ #include "provider_local.h"
++#if !defined(FIPS_MODULE)
++# include "fips_mode.h"
++#endif
+ 
+ OSSL_provider_init_fn ossl_default_provider_init;
+ OSSL_provider_init_fn ossl_base_provider_init;
+@@ -17,7 +20,7 @@
+ #ifdef STATIC_LEGACY
+ OSSL_provider_init_fn ossl_legacy_provider_init;
+ #endif
+-const OSSL_PROVIDER_INFO ossl_predefined_providers[] = {
++const OSSL_PROVIDER_INFO providers[] = {
+ #ifdef FIPS_MODULE
+     { "fips", NULL, ossl_fips_intern_provider_init, NULL, 1 },
+ #else
+@@ -30,3 +33,23 @@
+ #endif
+     { NULL, NULL, NULL, NULL, 0 }
+ };
++
++#if !defined(FIPS_MODULE)
++const OSSL_PROVIDER_INFO fips_providers[] = {
++    { "fips", NULL, NULL, NULL, 1 },
++    { "base", NULL, ossl_base_provider_init, NULL, 1 },
++    { "default", NULL, ossl_default_provider_init, NULL, 0 },
++    { "null", NULL, ossl_null_provider_init, NULL, 0 },
++    { NULL, NULL, NULL, NULL, 0 }
++};
++#endif
++
++const OSSL_PROVIDER_INFO *ossl_predefined_providers(void)
++{
++#if !defined(FIPS_MODULE)
++    if (ossl_fips_mode() == 1)
++        return fips_providers;
++#endif
++
++    return providers;
++}
+--- a/doc/man3/EVP_set_default_properties.pod
++++ b/doc/man3/EVP_set_default_properties.pod
+@@ -39,7 +39,8 @@
+ existing query strings that have been set via EVP_set_default_properties().
+ 
+ EVP_default_properties_is_fips_enabled() indicates if 'fips=yes' is a default
+-property for the given I<libctx>.
++property for the given I<libctx>. This is the default for every I<libctx> on
++systems that are operaring in FIPS-approved mode.
+ 
+ =head1 NOTES
+ 
+--- a/doc/man5/config.pod
++++ b/doc/man5/config.pod
+@@ -287,11 +287,13 @@
+ 
+ =head3 Default provider and its activation
+ 
+-If no providers are activated explicitly, the default one is activated implicitly.
+-See L<OSSL_PROVIDER-default(7)> for more details.
++If no providers are activated explicitly, either the default provider or
++FIPS provider are activated implicitly depending on the environment.
++See L<crypto(7)>, L<OSSL_PROVIDER-default(7)> and L<OSSL_PROVIDER-FIPS(7)> for
++more details.
+ 
+ If you add a section explicitly activating any other provider(s),
+-you most probably need to explicitly activate the default provider,
++you most probably need to explicitly activate the default or FIPS provider,
+ otherwise it becomes unavailable in openssl. It may make the system remotely unavailable.
+ 
+ =head2 EVP Configuration
+--- a/doc/man7/OSSL_PROVIDER-default.pod
++++ b/doc/man7/OSSL_PROVIDER-default.pod
+@@ -9,9 +9,10 @@
+ The OpenSSL default provider supplies the majority of OpenSSL's diverse
+ algorithm implementations. If an application doesn't specify anything else
+ explicitly (e.g. in the application or via config), then this is the
+-provider that will be used as fallback: It is loaded automatically the
+-first time that an algorithm is fetched from a provider or a function
+-acting on providers is called and no other provider has been loaded yet.
++provider that will be used as fallback on systems that are not operating in
++FIPS-approved mode: It is loaded automatically the first time that an algorithm
++is fetched from a provider or a function acting on providers is called and no
++other provider has been loaded yet.
+ 
+ If an attempt to load a provider has already been made (whether successful
+ or not) then the default provider won't be loaded automatically. Therefore
+--- a/doc/man7/fips_module.pod
++++ b/doc/man7/fips_module.pod
+@@ -40,6 +40,21 @@
+ avoid using all deprecated functions. See L<ossl-guide-migration(7)> for a list of
+ deprecated functions.
+ 
++=head2 Applications running on systems operating in FIPS-approved mode
++
++When running on systems that are operating in FIPS-approved mode and no
++providers are loaded explicitly via the application or config, the FIPS module
++is loaded implicitly as a fallback provider whenever an algorithm is fetched
++for the first time. The "default" provider is not loaded implicitly in this
++case, and must be loaded explicitly if it is required by an application.
++
++Every L<OSSL_LIB_CTX(3)> is created with "fips=yes" as a default property in
++this mode so that algorithm fetches will only fetch algorithms that define
++this property and are FIPS-approved. To use algorithms that are not FIPS
++approved, either specify "-fips" or "fips=no" as a property query string with
++fetching functions, or use the L<EVP_default_properties_enable_fips(3)> function
++to remove the default property for a specific B<OSSL_LIB_CTX>.
++
+ =head2 Making all applications use the FIPS module by default
+ 
+ One simple approach is to cause all applications that are using OpenSSL to only
+--- a/doc/man7/ossl-guide-libraries-introduction.pod
++++ b/doc/man7/ossl-guide-libraries-introduction.pod
+@@ -48,7 +48,21 @@
+ providers in the form of loadable modules.
+ 
+ If you don't load a provider explicitly (either in program code or via config)
+-then the OpenSSL built-in "default" provider will be automatically loaded.
++then one of the following OpenSSL provdiers will be loaded automatically:
++
++=over 4
++
++=item *
++
++The built-in "default" provider when running on a system that is not operating
++in FIPS-approved mode.
++
++=item *
++
++The "fips" provider when running on a system that is operating in FIPS-approved
++mode.
++
++=back
+ 
+ See L</OPENSSL PROVIDERS> below for a description of the providers that OpenSSL
+ itself supplies.
+@@ -188,9 +202,10 @@
+ search criterion for these implementations.  The default provider includes all
+ of the functionality in the base provider below.
+ 
+-If you don't load any providers at all then the "default" provider will be
+-automatically loaded. If you explicitly load any provider then the "default"
+-provider would also need to be explicitly loaded if it is required.
++If you don't load any providers at all and the system is not running in
++FIPS-approved mode, then the "default" provider will be automatically loaded.
++If you explicitly load any provider then the "default" provider would also need
++to be explicitly loaded if it is required.
+ 
+ See L<OSSL_PROVIDER-default(7)>.
+ 
+@@ -224,6 +239,11 @@
+ Typically the L</Base provider> will also need to be loaded because the FIPS
+ provider does not support the encoding or decoding of keys.
+ 
++If you don't load any providers at all and the system is running in
++FIPS-approved mode, then the FIPS provider will be automatically loaded.
++If you explicitly load any provider then the FIPS provider would also need
++to be explicitly loaded if it is required.
++
+ See L<OSSL_PROVIDER-FIPS(7)> and L<fips_module(7)>.
+ 
+ =head2 Legacy provider
+--- a/test/build.info
++++ b/test/build.info
+@@ -71,7 +71,8 @@
+           fips_version_test x509_test hpke_test pairwise_fail_test \
+           nodefltctxtest evp_xof_test x509_load_cert_file_test bio_meth_test \
+           x509_acert_test x509_req_test strtoultest bio_pw_callback_test \
+-          engine_stubs_test base64_simdutf_test bio_eof_test ech_test ossl_rbtree_test
++          engine_stubs_test base64_simdutf_test bio_eof_test ech_test ossl_rbtree_test \
++          fips_auto_enable_test
+ 
+   IF[{- !$disabled{'ech'} -}]
+     PROGRAMS{noinst}=ech_corrupt_test
+@@ -866,6 +867,10 @@
+   INCLUDE[ca_internals_test]=.. ../include ../apps/include
+   DEPEND[ca_internals_test]=libtestutil.a ../libssl
+ 
++  SOURCE[fips_auto_enable_test]=fips_auto_enable_test.c
++  INCLUDE[fips_auto_enable_test]=../include  ../apps/include
++  DEPEND[fips_auto_enable_test]=../libcrypto libtestutil.a
++
+   # Internal test programs.  These are essentially a collection of internal
+   # test routines.  Some of them need to reach internal symbols that aren't
+   # available through the shared library (at least on Linux, Solaris, Windows
+--- /dev/null
++++ b/test/fips_auto_enable_test.c
+@@ -0,0 +1,106 @@
++/*
++ * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
++ *
++ * Licensed under the Apache License 2.0 (the "License").  You may not use
++ * this file except in compliance with the License.  You can obtain a copy
++ * in the file LICENSE in the source distribution or at
++ * https://www.openssl.org/source/license.html
++ */
++
++#include <openssl/evp.h>
++#include <openssl/provider.h>
++#include "testutil.h"
++
++static int badfips;
++static int context;
++static int fips;
++
++static int test_fips_auto(void)
++{
++    OSSL_LIB_CTX *libctx = NULL;
++    EVP_MD *sha256 = NULL;
++    int is_fips_enabled, fips_loaded, default_loaded;
++    const char *prov_name, *expected_prov_name = fips ? "fips" : "default";
++    int testresult = 0;
++
++    if (context) {
++        if (!TEST_ptr(libctx = OSSL_LIB_CTX_new()))
++            goto err;
++    }
++
++    is_fips_enabled = EVP_default_properties_is_fips_enabled(libctx);
++
++    if (!TEST_int_eq(is_fips_enabled, fips))
++        goto err;
++
++    sha256 = EVP_MD_fetch(libctx, "SHA-256", NULL);
++    if (!fips || !badfips) {
++        if (!TEST_ptr(sha256))
++            goto err;
++
++        prov_name = OSSL_PROVIDER_get0_name(EVP_MD_get0_provider(sha256));
++        if (!TEST_str_eq(prov_name, expected_prov_name))
++            goto err;
++    } else if (!TEST_ptr_null(sha256))
++        goto err;
++
++    fips_loaded = OSSL_PROVIDER_available(libctx, "fips");
++    default_loaded = OSSL_PROVIDER_available(libctx, "default");
++
++    if (!TEST_int_eq(fips_loaded, fips && !badfips) ||
++        !TEST_int_eq(default_loaded, !fips && !badfips))
++        goto err;
++
++    testresult = 1;
++ err:
++    EVP_MD_free(sha256);
++    OSSL_LIB_CTX_free(libctx);
++    return testresult;
++}
++
++typedef enum OPTION_choice {
++    OPT_ERR = -1,
++    OPT_EOF = 0,
++    OPT_FIPS,
++    OPT_BAD_FIPS,
++    OPT_CONTEXT,
++    OPT_TEST_ENUM
++} OPTION_CHOICE;
++
++const OPTIONS *test_get_options(void)
++{
++    static const OPTIONS options[] = {
++        OPT_TEST_OPTIONS_DEFAULT_USAGE,
++        { "fips", OPT_FIPS, '-', "Test library context in FIPS mode" },
++        { "badfips", OPT_BAD_FIPS, '-', "Expect FIPS mode not to work correctly" },
++        { "context", OPT_CONTEXT, '-', "Explicitly use a non-default library context" },
++        { NULL }
++    };
++    return options;
++}
++
++int setup_tests(void)
++{
++    OPTION_CHOICE o;
++
++    while ((o = opt_next()) != OPT_EOF) {
++        switch (o) {
++        case OPT_FIPS:
++            fips = 1;
++            break;
++        case OPT_BAD_FIPS:
++            badfips = 1;
++            break;
++        case OPT_CONTEXT:
++            context = 1;
++            break;
++        case OPT_TEST_CASES:
++            break;
++        default:
++            return 0;
++        }
++    }
++
++    ADD_TEST(test_fips_auto);
++    return 1;
++}
+--- /dev/null
++++ b/test/recipes/04-test_auto_fips_mode.t
+@@ -0,0 +1,50 @@
++#! /usr/bin/env perl
++# Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
++#
++# Licensed under the Apache License 2.0 (the "License").  You may not use
++# this file except in compliance with the License.  You can obtain a copy
++# in the file LICENSE in the source distribution or at
++# https://www.openssl.org/source/license.html
++
++use strict;
++use warnings;
++
++use File::Spec::Functions qw/curdir/;
++use OpenSSL::Test qw/:DEFAULT srctop_dir srctop_file/;
++use OpenSSL::Test::Utils;
++use Cwd qw(abs_path);
++
++BEGIN {
++    setup("test_auto_fips_mode");
++}
++
++my $no_fips = disabled('fips') || ($ENV{NO_FIPS} // 0);
++
++plan tests => ($no_fips ? 5 : 7);
++
++$ENV{OPENSSL_FIPS_MODE_SWITCH_PATH} = abs_path(srctop_dir("test", "recipes",
++        "04-test_auto_fips_mode", "notexist"));
++ok(run(test(["fips_auto_enable_test"])), "running fips_auto_enable_test");
++ok(run(test(["fips_auto_enable_test", "-context"])),
++    "running fips_auto_enable_test -context");
++
++$ENV{OPENSSL_FIPS_MODE_SWITCH_PATH} = abs_path(srctop_file("test", "recipes",
++        "04-test_auto_fips_mode", "off"));
++ok(run(test(["fips_auto_enable_test"])),
++    "running fips_auto_enable_test with FIPS mode off");
++ok(run(test(["fips_auto_enable_test", "-context"])),
++    "running fips_auto_enable_test -context with FIPS mode off");
++
++$ENV{OPENSSL_FIPS_MODE_SWITCH_PATH} = abs_path(srctop_file("test", "recipes",
++        "04-test_auto_fips_mode", "on"));
++
++unless($no_fips) {
++    ok(run(test(["fips_auto_enable_test", "-fips"])),
++        "running fips_auto_enable_test -fips");
++    ok(run(test(["fips_auto_enable_test", "-context", "-fips"])),
++        "running fips_auto_enable_test -context -fips");
++}
++
++$ENV{OPENSSL_MODULES} = curdir();
++ok(run(test(["fips_auto_enable_test", "-fips", "-badfips"])),
++    "running fips_auto_enable_test -fips -badfips");
+--- /dev/null
++++ b/test/recipes/04-test_auto_fips_mode/off
+@@ -0,0 +1 @@
++0
+--- /dev/null
++++ b/test/recipes/04-test_auto_fips_mode/on
+@@ -0,0 +1 @@
++1
+--- a/test/run_tests.pl
++++ b/test/run_tests.pl
+@@ -71,6 +71,7 @@
+ $ENV{OPENSSL_CONF} = rel2abs(catfile($srctop, "apps", "openssl.cnf"));
+ $ENV{OPENSSL_CONF_INCLUDE} = rel2abs(catdir($bldtop, "test"));
+ $ENV{OPENSSL_MODULES} = rel2abs(catdir($bldtop, "providers"));
++$ENV{OPENSSL_FIPS_MODE_SWITCH_PATH} = "/nonexistant";
+ $ENV{CTLOG_FILE} = rel2abs(catfile($srctop, "test", "ct", "log_list.cnf"));
+ 
+ # On platforms that support this, this will ensure malloc returns data that is

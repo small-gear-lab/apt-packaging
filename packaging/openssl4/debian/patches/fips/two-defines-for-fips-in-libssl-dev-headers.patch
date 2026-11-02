@@ -1,0 +1,72 @@
+From: Adrien Nader <adrien.nader@canonical.com>
+Date: Wed, 11 Sept 2023 15:27:16 +0200
+Subject: Add two defines for FIPS in libssl-dev headers
+
+During FIPS certification for Noble, it was found that a few defines were
+missing and had to be manually inserted. This should be the last change
+needed to make libssl directly available for FIPS setups as all the remaining delta is in providers.
+
+The two defines are extracted from two patches:
+- crypto/dh: perform a PCT during key generation
+- providers: Add a FIPS status indicator
+
+Forwarded: not-needed
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/openssl/+bug/2073991
+
+---
+
+--- a/doc/man7/OSSL_PROVIDER-FIPS.pod
++++ b/doc/man7/OSSL_PROVIDER-FIPS.pod
+@@ -281,6 +281,36 @@
+ 
+ =back
+ 
++=head1 STATUS INDICATOR
++
++FIPS 140-3 requires that services provide an indicator when the service uses an
++approved cryptographic algorithm in an approved manner. In most cases, the
++status can be determine implicitly by observing the return code from an
++approved security service call, but the FIPS provider module may permit the
++use of approved cryptographic algorithms in a non-approved manner in some cases.
++For this, the Ubuntu FIPS provider module provides an explicit status indicator
++which is implemented as a gettable provider module parameter, and can be
++accessed using L<OSSL_PROVIDER_get_params(3)> on the B<OSSL_PROVIDER> associated
++with the FIPS provider module.
++
++See L<OSSL_PARAM(3)> for information about passing parameters.
++
++The following B<OSSL_PARAM> key is used for accessing the status indicator:
++
++=over 4
++
++=item "ubuntu.fips-unapproved-usage" (B<UBUNTU_OSSL_PROV_FIPS_PARAM_UNAPPROVED_USAGE>) <integer>
++
++Gets 1 if the L<OSSL_LIB_CTX(3)> associated with the B<OSSL_PROVIDER> has been
++used to execute a security service call that used an approved cryptographic
++algorithm in a non-approved manner inside the FIPS provider module. Querying
++this parameter resets it to 0. Note that this only applies to services inside
++of the FIPS provider module boundary - it cannot indicate whether the
++L<OSSL_LIB_CTX> has been used to execute security service calls in other
++provider modules.
++
++=back
++
+ =head1 SELF TESTING
+ 
+ A requirement of FIPS modules is to run cryptographic algorithm self tests.
+--- a/include/openssl/fips_names.h
++++ b/include/openssl/fips_names.h
+@@ -43,6 +43,13 @@
+ #define OSSL_PROV_FIPS_PARAM_TLS1_PRF_EMS_CHECK OSSL_PROV_PARAM_TLS1_PRF_EMS_CHECK
+ #define OSSL_PROV_FIPS_PARAM_DRBG_TRUNC_DIGEST OSSL_PROV_PARAM_DRBG_TRUNC_DIGEST
+ 
++/*
++ * The module status indicator for the FIPS provider. This is queried from
++ * the provider.
++ * Type: OSSL_PARAM_INTEGER
++ */
++#define UBUNTU_OSSL_PROV_FIPS_PARAM_UNAPPROVED_USAGE "ubuntu.fips-unapproved-usage"
++
+ #ifdef __cplusplus
+ }
+ #endif

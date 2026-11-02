@@ -1,0 +1,145 @@
+From: Chris Coulson <chris.coulson@canonical.com>
+Date: Thu, 14 Apr 2022 14:57:44 +0100
+Subject: crypto: Add kernel FIPS mode detection
+
+Forwarded: no
+Applied-Upstream: no
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/openssl/+bug/2056593
+
+This adds a new internal API to determine whether the kernel has been booted
+in FIPS mode. This can be overridden with the OPENSSL_FORCE_FIPS_MODE
+environment variable. OPENSSL_FIPS_MODE_SWITCH_PATH can be used to specify an
+alternative path for the fips_enabled file and is used in tests.
+The FIPS_MODULE switch can be used to enable build of the the FIPS provider
+module specific parts which are not needed in the OpenSSL library itself.
+---
+ crypto/build.info  |  2 +-
+ crypto/context.c   | 20 ++++++++++++++++++++
+ crypto/fips_mode.c | 46 ++++++++++++++++++++++++++++++++++++++++++++++
+ crypto/fips_mode.h | 17 +++++++++++++++++
+ 4 files changed, 84 insertions(+), 1 deletion(-)
+ create mode 100644 crypto/fips_mode.c
+ create mode 100644 crypto/fips_mode.h
+
+--- a/crypto/build.info
++++ b/crypto/build.info
+@@ -106,7 +106,7 @@
+         comp_methods.c cversion.c info.c cpt_err.c ebcdic.c uid.c \
+         o_dir.c o_fopen.c getenv.c o_init.c init.c trace.c provider.c \
+         provider_child.c punycode.c passphrase.c sleep.c \
+-        quic_vlint.c time.c defaults.c ssl_err.c
++        quic_vlint.c time.c defaults.c ssl_err.c fips_mode.c
+ SOURCE[../providers/libfips.a]=$UTIL_COMMON
+ 
+ SOURCE[../libcrypto]=$UPLINKSRC
+--- a/crypto/context.c
++++ b/crypto/context.c
+@@ -20,6 +20,11 @@
+ #include "crypto/decoder.h"
+ #include "crypto/context.h"
+ 
++#ifndef FIPS_MODULE
++# include "crypto/evp.h"
++# include "fips_mode.h"
++#endif
++
+ struct ossl_lib_ctx_st {
+     CRYPTO_RWLOCK *lock;
+     OSSL_EX_DATA_GLOBAL global;
+@@ -113,12 +118,27 @@
+     return 1;
+ }
+ 
++#if !defined(FIPS_MODULE)
++static CRYPTO_ONCE init_fips = CRYPTO_ONCE_STATIC_INIT;
++
++DEFINE_RUN_ONCE_STATIC(do_init_fips)
++{
++    ossl_init_fips();
++    return 1;
++}
++#endif
++
+ static void context_deinit_objs(OSSL_LIB_CTX *ctx);
+ 
+ static int context_init(OSSL_LIB_CTX *ctx)
+ {
+     int exdata_done = 0;
+ 
++#if !defined(FIPS_MODULE)
++    if (!RUN_ONCE(&init_fips, do_init_fips))
++        return 0;
++#endif
++
+     ctx->lock = CRYPTO_THREAD_lock_new();
+     if (ctx->lock == NULL)
+         goto err;
+--- /dev/null
++++ b/crypto/fips_mode.c
+@@ -0,0 +1,46 @@
++#define _GNU_SOURCE
++#include <errno.h>
++#include <fcntl.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#include "fips_mode.h"
++
++#define FIPS_MODE_SWITCH_FILE "/proc/sys/crypto/fips_enabled"
++
++static int fips_mode;
++
++int ossl_fips_mode(void)
++{
++    return fips_mode;
++}
++
++void ossl_init_fips(void)
++{
++    const char *switch_path = FIPS_MODE_SWITCH_FILE;
++    char *v;
++    char c;
++    int fd;
++
++    if ((v = secure_getenv("OPENSSL_FORCE_FIPS_MODE")) != NULL) {
++        fips_mode = strcmp(v, "0") == 0 ? 0 : 1;
++        return;
++    }
++
++    if ((v = secure_getenv("OPENSSL_FIPS_MODE_SWITCH_PATH")) != NULL) {
++        switch_path = v;
++    }
++
++    fd = open(switch_path, O_RDONLY);
++    if (fd < 0) {
++        fips_mode = 0;
++        return;
++    }
++
++    while (read(fd, &c, sizeof(c)) < 0 && errno == EINTR);
++    close(fd);
++
++    fips_mode = c == '1' ? 1 : 0;
++}
+--- /dev/null
++++ b/crypto/fips_mode.h
+@@ -0,0 +1,17 @@
++/*
++ * Copyright 2016-2021 The OpenSSL Project Authors. All Rights Reserved.
++ *
++ * Licensed under the Apache License 2.0 (the "License").  You may not use
++ * this file except in compliance with the License.  You can obtain a copy
++ * in the file LICENSE in the source distribution or at
++ * https://www.openssl.org/source/license.html
++ */
++
++#ifndef OSSL_FIPS_MODE_H
++# define OSSL_FIPS_MODE_H
++# pragma once
++
++int ossl_fips_mode(void);
++void ossl_init_fips(void);
++
++#endif

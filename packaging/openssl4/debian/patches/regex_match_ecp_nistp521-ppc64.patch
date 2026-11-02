@@ -1,0 +1,30 @@
+Description: match last filename for output in ecp_nistp521-ppc64.pl
+
+ ecp_nistp521-ppc64.pl matches the incorrect param for output instead of
+ crypto/ec/ecp_nistp521-ppc64.s This leads to ecp_nistp521-ppc64.pl writing
+ output to STDOUT instead of the file crypto/ec/ecp_nistp521-ppc64.s. The
+ missing .s file leads Missing .s file leads to gcc erroring out and build
+ failure.  Makefile generates command with crypto/ec/ecp_nistp521-ppc64.s as
+ the last param. This page matches the last filename instead of first.
+
+Author: Ravi Kant Sharma <ravi.kant.sharma@canonical.com>
+Bug-Ubuntu: https://launchpad.net/bugs/2137464
+
+---
+Forwarded: https://github.com/openssl/openssl/pull/29417
+Last-Update: 2025-12-17
+
+--- openssl-3.0.13.orig/crypto/ec/asm/ecp_nistp521-ppc64.pl
++++ openssl-3.0.13/crypto/ec/asm/ecp_nistp521-ppc64.pl
+@@ -19,7 +19,10 @@ use warnings;
+ 
+ my $flavour = shift;
+ my $output = "";
+-while (($output=shift) && ($output!~/\w[\w\-]*\.\w+$/)) {}
++my $arg;
++while ($arg = shift) {
++    $output = $arg if $arg =~ /\w[\w\-]*\.\w+$/;
++}
+ if (!$output) {
+ 	$output = "-";
+ }

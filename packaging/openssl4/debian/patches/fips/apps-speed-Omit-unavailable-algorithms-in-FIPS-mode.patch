@@ -1,0 +1,126 @@
+From: Chris Coulson <chris.coulson@canonical.com>
+Date: Thu, 21 Apr 2022 13:11:18 +0100
+Subject: apps/speed: Omit unavailable algorithms in FIPS mode
+
+Forwarded: no
+Applied-Upstream: no
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/openssl/+bug/2056593
+---
+ apps/speed.c | 66 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 66 insertions(+)
+
+--- a/apps/speed.c
++++ b/apps/speed.c
+@@ -1952,6 +1952,9 @@
+     uint8_t do_kems = 0;
+     uint8_t do_sigs = 0;
+ 
++    if (EVP_default_properties_is_fips_enabled(app_get0_libctx()))
++        evp_mac_mdname = "sha1";
++
+     prog = opt_init(argc, argv, speed_options);
+     while ((o = opt_next()) != OPT_EOF) {
+         switch (o) {
+@@ -2225,6 +2228,8 @@
+         if (strcmp(algo, "des") == 0) {
+             doit[D_CBC_DES] = doit[D_EDE3_DES] = 1;
+             algo_found = 1;
++            if (EVP_default_properties_is_fips_enabled(app_get0_libctx()))
++                doit[D_CBC_DES] = 0;
+         }
+         if (strcmp(algo, "sha") == 0) {
+             doit[D_SHA1] = doit[D_SHA256] = doit[D_SHA512] = 1;
+@@ -2238,6 +2243,8 @@
+             if (algo[sizeof("rsa") - 1] == '\0') {
+                 memset(rsa_doit, 1, sizeof(rsa_doit));
+                 algo_found = 1;
++                if (EVP_default_properties_is_fips_enabled(app_get0_libctx()))
++                    rsa_doit[R_RSA_512] = rsa_doit[R_RSA_1024] = 0;
+             }
+             if (opt_found(algo, rsa_choices, &i)) {
+                 rsa_doit[i] = 1;
+@@ -2261,10 +2268,26 @@
+             if (algo[sizeof("dsa") - 1] == '\0') {
+                 memset(dsa_doit, 1, sizeof(dsa_doit));
+                 algo_found = 1;
++                /* R_DSA_512 and R_DSA_1024 should be disabled in FIPS mode,
++                 * but actually, none of the DSA benchmarks work because the
++                 * compiled-in keys fail the necessary checks. Just return an
++                 * error if the DSA benchmarks are invoked explicitly. */
+             }
+             if (opt_found(algo, dsa_choices, &i)) {
+                 dsa_doit[i] = 2;
+                 algo_found = 1;
++                if (EVP_default_properties_is_fips_enabled(app_get0_libctx())) {
++                    ecdsa_doit[R_EC_P160] = ecdsa_doit[R_EC_P192] = 0;
++#ifndef OPENSSL_NO_EC2M
++                    ecdsa_doit[R_EC_K163] = ecdsa_doit[R_EC_B163] = 0;
++#endif
++                    ecdsa_doit[R_EC_BRP256R1] =
++                        ecdsa_doit[R_EC_BRP256T1] =
++                        ecdsa_doit[R_EC_BRP384R1] =
++                        ecdsa_doit[R_EC_BRP384T1] =
++                        ecdsa_doit[R_EC_BRP512R1] =
++                        ecdsa_doit[R_EC_BRP512T1] = 0;
++                }
+             }
+         }
+ #endif
+@@ -2283,6 +2306,18 @@
+         if (strcmp(algo, "ecdh") == 0) {
+             memset(ecdh_doit, 1, sizeof(ecdh_doit));
+             algo_found = 1;
++            if (EVP_default_properties_is_fips_enabled(app_get0_libctx())) {
++                ecdh_doit[R_EC_P160] = ecdh_doit[R_EC_P192] = 0;
++#ifndef OPENSSL_NO_EC2M
++                ecdh_doit[R_EC_K163] = ecdh_doit[R_EC_B163] = 0;
++#endif
++                ecdh_doit[R_EC_BRP256R1] =
++                    ecdh_doit[R_EC_BRP256T1] =
++                    ecdh_doit[R_EC_BRP384R1] =
++                    ecdh_doit[R_EC_BRP384T1] =
++                    ecdh_doit[R_EC_BRP512R1] =
++                    ecdh_doit[R_EC_BRP512T1] = 0;
++            }
+         }
+         for (i = 0; i < EC_NUM; i++) {
+             /* Negative values are ECDH-only curves */
+@@ -2491,6 +2526,38 @@
+         do_kems = 1;
+         memset(sigs_doit, 1, sizeof(sigs_doit));
+         do_sigs = 1;
++        if (EVP_default_properties_is_fips_enabled(app_get0_libctx())) {
++            rsa_doit[R_RSA_512] = rsa_doit[R_RSA_1024] = 0;
++
++            memset(dsa_doit, 0, sizeof(dsa_doit));
++
++            ecdsa_doit[R_EC_P160] = ecdsa_doit[R_EC_P192] = 0;
++#ifndef OPENSSL_NO_EC2M
++            ecdsa_doit[R_EC_K163] = ecdsa_doit[R_EC_B163] = 0;
++#endif
++            ecdsa_doit[R_EC_BRP256R1] =
++                ecdsa_doit[R_EC_BRP256T1] =
++                ecdsa_doit[R_EC_BRP384R1] =
++                ecdsa_doit[R_EC_BRP384T1] =
++                ecdsa_doit[R_EC_BRP512R1] =
++                ecdsa_doit[R_EC_BRP512T1] = 0;
++
++            ecdh_doit[R_EC_P160] = ecdh_doit[R_EC_P192] = 0;
++#ifndef OPENSSL_NO_EC2M
++            ecdh_doit[R_EC_K163] = ecdh_doit[R_EC_B163] = 0;
++#endif
++            ecdh_doit[R_EC_BRP256R1] =
++                ecdh_doit[R_EC_BRP256T1] =
++                ecdh_doit[R_EC_BRP384R1] =
++                ecdh_doit[R_EC_BRP384T1] =
++                ecdh_doit[R_EC_BRP512R1] =
++                ecdh_doit[R_EC_BRP512T1] = 0;
++
++#ifndef OPENSSL_NO_SM2
++            ecdsa_doit[R_SM2] = 0;
++            ecdh_doit[R_curveSM2] = 0;
++#endif
++        }
+     }
+     for (i = 0; i < ALGOR_NUM; i++)
+         if (doit[i])

@@ -1,0 +1,114 @@
+Description: Add userspace entropy mode detection for FIPS
+Author: Eric Berry <eric.berry@canonical.com>
+Origin: vendor, Canonical
+---
+This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
+--- a/crypto/fips_mode.c
++++ b/crypto/fips_mode.c
+@@ -9,6 +9,7 @@
+ #include "fips_mode.h"
+ 
+ #define FIPS_MODE_SWITCH_FILE "/proc/sys/crypto/fips_enabled"
++#define FIPS_MODE_USERSPACE_FILE "/etc/ubuntu-fips"
+ 
+ static int fips_mode;
+ 
+@@ -25,7 +26,7 @@
+     int fd;
+ 
+     if ((v = secure_getenv("OPENSSL_FORCE_FIPS_MODE")) != NULL) {
+-        fips_mode = strcmp(v, "0") == 0 ? 0 : 1;
++        fips_mode = strcmp(v, "0") == 0 ? FIPS_MODE_DISABLED : FIPS_MODE_KERNEL_ENTROPY;
+         return;
+     }
+ 
+@@ -34,13 +35,26 @@
+     }
+ 
+     fd = open(switch_path, O_RDONLY);
+-    if (fd < 0) {
+-        fips_mode = 0;
+-        return;
++    if (fd >= 0) {
++        while (read(fd, &c, sizeof(c)) < 0 && errno == EINTR);
++        close(fd);
++
++        if (c == '1') {
++            fips_mode = FIPS_MODE_KERNEL_ENTROPY;
++            return;
++        }
+     }
+ 
+-    while (read(fd, &c, sizeof(c)) < 0 && errno == EINTR);
+-    close(fd);
++    fd = open(FIPS_MODE_USERSPACE_FILE, O_RDONLY);
++    if (fd >= 0) {
++        while (read(fd, &c, sizeof(c)) < 0 && errno == EINTR);
++        close(fd);
++
++        if (c == '1') {
++            fips_mode = FIPS_MODE_USERSPACE_ENTROPY;
++            return;
++        }
++    }
+ 
+-    fips_mode = c == '1' ? 1 : 0;
++    fips_mode = FIPS_MODE_DISABLED;
+ }
+--- a/crypto/fips_mode.h
++++ b/crypto/fips_mode.h
+@@ -11,6 +11,12 @@
+ # define OSSL_FIPS_MODE_H
+ # pragma once
+ 
++enum {
++    FIPS_MODE_DISABLED = 0,
++    FIPS_MODE_KERNEL_ENTROPY,
++    FIPS_MODE_USERSPACE_ENTROPY
++};
++
+ int ossl_fips_mode(void);
+ void ossl_init_fips(void);
+ 
+--- a/crypto/build.info
++++ b/crypto/build.info
+@@ -99,14 +99,15 @@
+         threads_pthread.c threads_win.c threads_none.c threads_common.c \
+         initthread.c context.c sparse_array.c asn1_dsa.c packet.c \
+         param_build.c param_build_set.c der_writer.c threads_lib.c \
+-        params_dup.c time.c array_alloc.c aligned_alloc.c deterministic_nonce.c
++        params_dup.c time.c array_alloc.c aligned_alloc.c deterministic_nonce.c \
++        fips_mode.c
+ 
+ SOURCE[../libcrypto]=$UTIL_COMMON \
+         mem.c mem_sec.c \
+         comp_methods.c cversion.c info.c cpt_err.c ebcdic.c uid.c \
+         o_dir.c o_fopen.c getenv.c o_init.c init.c trace.c provider.c \
+         provider_child.c punycode.c passphrase.c sleep.c \
+-        quic_vlint.c time.c defaults.c ssl_err.c fips_mode.c
++        quic_vlint.c time.c defaults.c ssl_err.c
+ SOURCE[../providers/libfips.a]=$UTIL_COMMON
+ 
+ SOURCE[../libcrypto]=$UPLINKSRC
+--- a/crypto/provider_predefined.c
++++ b/crypto/provider_predefined.c
+@@ -47,7 +47,7 @@
+ const OSSL_PROVIDER_INFO *ossl_predefined_providers(void)
+ {
+ #if !defined(FIPS_MODULE)
+-    if (ossl_fips_mode() == 1)
++    if (ossl_fips_mode() != FIPS_MODE_DISABLED)
+         return fips_providers;
+ #endif
+ 
+--- a/crypto/context.c
++++ b/crypto/context.c
+@@ -251,7 +251,7 @@
+ #endif
+ 
+ #if !defined(FIPS_MODULE)
+-    if (ossl_fips_mode() == 1 && !evp_default_properties_enable_fips_int(ctx, 1, 0))
++    if (ossl_fips_mode() != FIPS_MODE_DISABLED && !evp_default_properties_enable_fips_int(ctx, 1, 0))
+         goto err;
+ #endif
+ 

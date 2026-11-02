@@ -1,0 +1,55 @@
+From: Chris Coulson <chris.coulson@canonical.com>
+Date: Thu, 30 Mar 2023 16:10:16 +0100
+Subject: test: Ensure encoding runs with the correct context during
+ test_encoder_decoder
+
+Forwarded: no
+Applied-Upstream: no
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/openssl/+bug/2056593
+
+This test uses 2 library contexts - one context for creating initial test keys,
+and then another context (or the default context) for running tests. There is an
+issue that during the encoding tests, the OSSL_ENCODER_CTX is created from the
+created EVP_PKEYs, which are associated with the library context used to create
+the keys. This means that encoding tests run with the wrong library context,
+which always uses the default provider.
+---
+ test/endecode_test.c | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+--- a/test/endecode_test.c
++++ b/test/endecode_test.c
+@@ -110,11 +110,11 @@
+ static EVP_PKEY *make_key(const char *type, EVP_PKEY *template,
+     OSSL_PARAM *genparams)
+ {
+-    EVP_PKEY *pkey = NULL;
++    EVP_PKEY *tmp_pkey = NULL, *pkey = NULL;
+     EVP_PKEY_CTX *ctx = template != NULL
+         ? EVP_PKEY_CTX_new_from_pkey(keyctx, template, testpropq)
+         : EVP_PKEY_CTX_new_from_name(keyctx, type, testpropq);
+-
++    OSSL_PARAM *params = NULL;
+     /*
+      * No real need to check the errors other than for the cascade
+      * effect.  |pkey| will simply remain NULL if something goes wrong.
+@@ -123,8 +123,18 @@
+         && EVP_PKEY_keygen_init(ctx) > 0
+         && (genparams == NULL
+             || EVP_PKEY_CTX_set_params(ctx, genparams) > 0)
+-        && EVP_PKEY_keygen(ctx, &pkey) > 0);
++        && EVP_PKEY_keygen(ctx, &tmp_pkey) > 0);
++    EVP_PKEY_CTX_free(ctx);
++
++    (void)(tmp_pkey != NULL
++        && ((ctx = EVP_PKEY_CTX_new_from_name(testctx, type, testpropq)) != NULL)
++        && EVP_PKEY_todata(tmp_pkey, EVP_PKEY_KEYPAIR, &params) > 0
++        && EVP_PKEY_fromdata_init(ctx) > 0
++        && EVP_PKEY_fromdata(ctx, &pkey, EVP_PKEY_KEYPAIR, params) > 0);
++    OSSL_PARAM_free(params);
+     EVP_PKEY_CTX_free(ctx);
++    EVP_PKEY_free(tmp_pkey);
++
+     return pkey;
+ }
+ #endif
