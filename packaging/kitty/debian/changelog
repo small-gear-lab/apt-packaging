@@ -1,3 +1,19 @@
+kitty (0.50.0-1~smallgearlab1) resolute; urgency=medium
+
+  * New upstream release 0.50.0 (signed tarball verified against Kovid
+    Goyal's key). Fixes a remote-control password bypass and heap
+    corruption on config reload.
+  * Refresh the local patches for 0.50.0: 0007 (intro video, upstream added
+    <track> lines), 0015 (go.mod now names toolchain go1.26.10) and 0017
+    (IME cursor mark; keys.c and screen.h moved). 0016 applies with an offset.
+  * debian/rules: also remove the CI and Repology badge images that
+    build.html and quickstart.html load from the network (lintian:
+    privacy-breach-generic).
+  * bypy/sources.json still pins slang 2026.14.1, so kitty-slang-compiler
+    (>= 2026.14.1) is unchanged.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 04 Nov 2026 09:00:00 +0900
+
 kitty (0.49.2-1~smallgearlab9) resolute; urgency=medium
 
   * debian/rules: remove the screenshot that graphics-protocol.html loads

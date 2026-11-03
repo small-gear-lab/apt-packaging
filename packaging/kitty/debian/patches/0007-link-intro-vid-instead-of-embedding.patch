@@ -7,7 +7,7 @@ Removes a privacy breach.
 
 --- a/docs/intro_vid.rst
 +++ b/docs/intro_vid.rst
-@@ -1,11 +1,4 @@
+@@ -1,13 +1,4 @@
 -.. raw:: html
 -
 -    <div id="intro-video-container" class="video-with-timestamps">
@@ -15,6 +15,8 @@ Removes a privacy breach.
 -    <video controls width="640" height="360" poster="_static/poster.png">
 -        <source src="https://download.calibre-ebook.com/videos/kitty.mp4" type="video/mp4">
 -        <source src="https://download.calibre-ebook.com/videos/kitty.webm" type="video/webm">
+-        <track kind="subtitles" label="English" srclang="en" src="_static/kitty.en.vtt">
+-        <track kind="subtitles" label="Español" srclang="es" src="_static/kitty.es.vtt">
 -    </video>
 +You can watch the introductory video `here <https://download.calibre-ebook.com/videos/kitty.mp4>`_.
  

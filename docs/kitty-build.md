@@ -1,10 +1,10 @@
-# Building kitty 0.49.2 for Ubuntu 26.04
+# Building kitty 0.50.0 for Ubuntu 26.04
 
-Ubuntu ships 0.45.0 (plus ESM security updates). We rebuild upstream 0.49.2 from the
+Ubuntu ships 0.45.0 (plus ESM security updates). We rebuild upstream 0.50.0 from the
 Ubuntu source package's `debian/` directory.
 
-Working tree: `~/.cache/kitty-dl/deb/build/kitty-0.49.2/`
-Downloads: `~/.cache/kitty-dl/v0.49.2/` (source, prebuilt archive, signatures)
+Working tree: `~/.cache/kitty-dl/deb/build/kitty-0.50.0/`
+Downloads: `~/.cache/kitty-dl/v0.50.0/` (source, prebuilt archive, signatures)
 
 Packages produced: `kitty`, `kitty-doc`, `kitty-terminfo`, `kitty-shell-integration`.
 
@@ -137,7 +137,7 @@ then `build`. The packaging is not under git yet.
 
 | Patch | What and why |
 |---|---|
-| `0015-remove-toolchain-directive.patch` | drops the `toolchain` line of `go.mod` (the Debian patch for it no longer applied) |
+| `0015-remove-toolchain-directive.patch` | drops the `toolchain` line of `go.mod` (the Debian patch for it no longer applied; the line names a new toolchain in each release, so redo the patch for every version) |
 | `0016-ime-preedit-straight-underline-no-italic.patch` | 0.49 draws IME pre-edit text italic with a dashed underline (hard-coded in `screen_draw_overlay_line`, no option). Now: straight underline, no italic |
 | `0017-ime-preedit-mark-cursor-cell.patch` | draws the one code point at the IME cursor in reverse video during conversion |
 
@@ -158,6 +158,15 @@ Notes on 0017:
 - Files touched: `glfw/glfw3.h`, `glfw/wl_text_input.c`, `kitty/glfw-wrapper.h`, `kitty/keys.c`,
   `kitty/screen.c`, `kitty/screen.h`. Re-check them on every kitty update.
 - Blinking text exists in 0.49 (`sgr.blink`), so a blinking mark would also be possible.
+
+## Redoing the patches for 0.50.0
+
+Of the series, `0007` (upstream added two `<track>` lines to `docs/intro_vid.rst`), `0015` (`toolchain go1.26.10`)
+and `0017` (the `screen_update_overlay_text` call sites in `keys.c` and its prototype in `screen.h`, both moved)
+needed hand work; the rest applied with offsets only. 0.50.0 also adds an anchoring of the IME candidate window
+at the pre-edit start (`screen_overlay_line_start`); it does not touch the code of 0017. The two status badges
+(GitHub CI, Repology) in `build.html` and `quickstart.html` are removed in `debian/rules` like the other images.
+Not checked by me: the look of the cursor-cell mark in a real IME session under 0.50.0.
 
 ## kitty.conf changes that came with 0.49 (user side, not in the package)
 

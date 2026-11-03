@@ -79,6 +79,10 @@ override_dh_installdocs:
 	# Remove the screenshot that graphics-protocol.html would fetch from GitHub whenever the page is opened
 	[ ! -d debian/kitty-doc ] || find debian/kitty-doc/usr/share/doc/kitty/html -name '*.html' \
 		-exec sed -i 's|<img [^>]*src="https://github.com/user-attachments/[^>]*>||g' {} +
+	# Remove the status badges (GitHub CI, Repology) of build.html and quickstart.html, loaded from the network too
+	[ ! -d debian/kitty-doc ] || find debian/kitty-doc/usr/share/doc/kitty/html -name '*.html' \
+		-exec sed -i -e 's|<img [^>]*src="https://github.com/kovidgoyal/kitty/workflows/[^>]*>||g' \
+		-e 's|<img [^>]*src="https://repology.org/badge/[^>]*>||g' {} +
 
 override_dh_python3:
 	dh_python3 --no-ext-rename
