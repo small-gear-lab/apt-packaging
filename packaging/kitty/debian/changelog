@@ -1,3 +1,14 @@
+kitty (0.50.0-1~smallgearlab2) resolute; urgency=medium
+
+  * 0018: when the user has seen a finished or failed root record of the
+    program status protocol (OSC 7501), it becomes idle instead of vanishing.
+  * 0019: new local option sgl__program_status_symbol (the sgl__ prefix marks
+    options that are not upstream): the glyph (codepoint), color and font
+    family of each program status state, used by {tab.program_status} and
+    mapped to the font like symbol_map.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 04 Nov 2026 10:55:50 +0900
+
 kitty (0.50.0-1~smallgearlab1) resolute; urgency=medium
 
   * New upstream release 0.50.0 (signed tarball verified against Kovid

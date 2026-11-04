@@ -9,3 +9,5 @@
 0015-remove-toolchain-directive.patch
 0016-ime-preedit-straight-underline-no-italic.patch
 0017-ime-preedit-mark-cursor-cell.patch
+0018-program-status-seen-becomes-idle.patch
+0019-sgl-program-status-symbol-option.patch

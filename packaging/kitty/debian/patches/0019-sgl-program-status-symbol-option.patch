@@ -1,0 +1,261 @@
+Index: kitty-0.50.0/kitty/fonts/render.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/fonts/render.py
++++ kitty-0.50.0/kitty/fonts/render.py
+@@ -143,7 +143,13 @@ def coalesce_symbol_maps[_T](maps: dict[
+ 
+ 
+ def create_symbol_map(opts: Options) -> tuple[tuple[int, int, int], ...]:
+-    val = coalesce_symbol_maps(opts.symbol_map)
++    maps = dict(opts.symbol_map)
++    # Local option sgl__program_status_symbol: a glyph given with a font family is mapped to that font,
++    # after the symbol_map entries so that it takes priority
++    for cp, _color, family in opts.sgl__program_status_symbol.values():
++        if family:
++            maps[(cp, cp)] = family
++    val = coalesce_symbol_maps(maps)
+     family_map: dict[str, int] = {}
+     count = 0
+     for family in val.values():
+Index: kitty-0.50.0/kitty/options/definition.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/definition.py
++++ kitty-0.50.0/kitty/options/definition.py
+@@ -122,6 +122,27 @@ This option can be specified multiple ti
+ 
+ 
+ opt(
++    '+sgl__program_status_symbol',
++    'working U+F0184 #4a90e2 Symbols Nerd Font Mono',
++    option_type='sgl__program_status_symbol',
++    add_to_default=False,
++    long_text="""
++Local option added by the small-gear-lab kitty package, not part of upstream kitty.
++Choose the glyph used by :code:`{tab.program_status}` for each state of the
++:ref:`program status protocol <program_status>`. The state is one of
++:code:`idle`, :code:`working`, :code:`blocked`, :code:`done` or :code:`error`.
++The glyph is a Unicode codepoint in the form :code:`U+<hexadecimal>`. The color is
++a color name or :code:`#rrggbb`, or :code:`none` to keep the tab text color. The
++font family is optional; when given, the codepoint is mapped to that font in the same
++way as :opt:`symbol_map`. A state that is not listed keeps the default symbol of kitty
++(none for idle). This option can be specified multiple times. The syntax is::
++
++    sgl__program_status_symbol state codepoint color [Font Family Name]
++""",
++)
++
++
++opt(
+     'disable_ligatures',
+     'never',
+     option_type='disable_ligatures',
+Index: kitty-0.50.0/kitty/options/parse.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/parse.py
++++ kitty-0.50.0/kitty/options/parse.py
+@@ -19,7 +19,7 @@ from kitty.options.utils import (
+     mouse_hide_wait, narrow_symbols, notify_on_cmd_finish, optional_edge_width, parse_font_spec,
+     parse_map, parse_mouse_map, paste_actions, pointer_shape_when_dragging, remap_modifiers,
+     remote_control_password, resize_debounce_time, scrollback_lines, scrollback_pager_history_size,
+-    scrollbar_color, shell_integration, show_hyperlink_targets, store_multiple, symbol_map,
++    scrollbar_color, sgl__program_status_symbol, shell_integration, show_hyperlink_targets, store_multiple, symbol_map,
+     tab_activity_symbol, tab_bar_edge, tab_bar_margin_height, tab_bar_min_tabs, tab_fade,
+     tab_font_style, tab_separator, tab_title_template, tab_title_wrap, text_fg_override_threshold,
+     titlebar_color, to_cursor_shape, to_cursor_unfocused_shape, to_font_size, to_layout_names,
+@@ -1353,6 +1353,10 @@ class Parser:
+     def selection_foreground(self, val: str, ans: dict[str, typing.Any]) -> None:
+         ans['selection_foreground'] = to_color_or_none(val)
+ 
++    def sgl__program_status_symbol(self, val: str, ans: dict[str, typing.Any]) -> None:
++        for k, v in sgl__program_status_symbol(val):
++            ans["sgl__program_status_symbol"][k] = v
++
+     def shell(self, val: str, ans: dict[str, typing.Any]) -> None:
+         ans['shell'] = str(val)
+ 
+@@ -1666,6 +1670,7 @@ def create_result_dict() -> dict[str, ty
+         'modify_font': {},
+         'narrow_symbols': {},
+         'remote_control_password': {},
++        'sgl__program_status_symbol': {},
+         'symbol_map': {},
+         'watcher': {},
+         'map': [],
+Index: kitty-0.50.0/kitty/options/types.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/types.py
++++ kitty-0.50.0/kitty/options/types.py
+@@ -460,6 +460,7 @@ option_names = (
+     'select_by_word_characters_forward',
+     'selection_background',
+     'selection_foreground',
++    'sgl__program_status_symbol',
+     'shell',
+     'shell_integration',
+     'show_hyperlink_targets',
+@@ -679,6 +680,7 @@ class Options:
+     select_by_word_characters_forward: str = ''
+     selection_background: kitty.fast_data_types.Color | None = Color(255, 250, 205)
+     selection_foreground: kitty.fast_data_types.Color | None = Color(0, 0, 0)
++    sgl__program_status_symbol: dict[str, tuple[int, str, str]] = {}
+     shell: str = '.'
+     shell_integration: frozenset[str] = frozenset({'enabled'})
+     show_hyperlink_targets: typing.Literal['never', 'always', 'Ctrl', 'Shift', 'Super', 'Alt'] = 'never'
+@@ -889,6 +891,7 @@ defaults.menu_map = {}
+ defaults.modify_font = {}
+ defaults.narrow_symbols = {}
+ defaults.remote_control_password = {}
++defaults.sgl__program_status_symbol = {}
+ defaults.symbol_map = {}
+ defaults.watcher = {}
+ 
+Index: kitty-0.50.0/kitty/options/utils.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/utils.py
++++ kitty-0.50.0/kitty/options/utils.py
+@@ -1290,6 +1290,33 @@ def symbol_map(val: str) -> Iterable[tup
+     yield from symbol_map_parser(val)
+ 
+ 
++SGL_PROGRAM_STATUS_STATES = ('idle', 'working', 'blocked', 'done', 'error')
++
++
++def sgl__program_status_symbol(val: str) -> Iterable[tuple[str, tuple[int, str, str]]]:
++    # Local option (small-gear-lab package): state, codepoint, color [, font family]
++    parts = val.split()
++    if len(parts) < 3:
++        raise ValueError('must have state, codepoint and color')
++    state, cp, color = parts[:3]
++    family = ' '.join(parts[3:])
++    if state not in SGL_PROGRAM_STATUS_STATES:
++        raise ValueError(f'unknown state {state!r}, must be one of {", ".join(SGL_PROGRAM_STATUS_STATES)}')
++    if not cp.startswith('U+'):
++        raise ValueError(f'{cp} is not a unicode codepoint of the form U+number')
++    cpi = int(cp[2:], 16)
++    if not 0 < cpi <= sys.maxunicode:
++        raise ValueError(f'Invalid codepoint: {cpi:x}')
++    if color.lower() != 'none':
++        c = to_color(color)
++        if c is None:
++            raise ValueError(f'{color} is not a valid color')
++        color = f'#{c.red:02x}{c.green:02x}{c.blue:02x}'
++    else:
++        color = 'none'
++    yield state, (cpi, color, family)
++
++
+ def narrow_symbols(val: str) -> Iterable[tuple[tuple[int, int], int]]:
+     for x, y in symbol_map_parser(val, min_size=1):
+         yield x, int(y or 1)
+Index: kitty-0.50.0/kitty/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/program_status.py
++++ kitty-0.50.0/kitty/program_status.py
+@@ -287,9 +287,30 @@ class ProgramStatus:
+         return ans
+ 
+ 
+-def status_symbol(record: Record | None, num: int = 1) -> str:
+-    "A short indicator for use in tab and window titles, num is the number of windows in this state"
+-    if record is None or record.state is State.idle:
++def status_symbol(
++    record: Record | None, num: int = 1, custom: dict[str, tuple[int, str, str]] | None = None,
++    colorize: Callable[[str | None], str] | None = None,
++) -> str:
++    """
++    A short indicator for use in tab and window titles, num is the number of windows in this state.
++    custom is the sgl__program_status_symbol option: state name -> (codepoint, color, font family), and
++    colorize turns a color ('#rrggbb', or None for the text color) into an escape code.
++    """
++    if record is None:
++        return ''
++    if custom and (entry := custom.get(record.state.value)) is not None:
++        cp, color, _family = entry
++        sym = chr(cp)
++        if colorize is not None and color != 'none':
++            sym = f'{colorize(color)}{sym}{colorize(None)}'
++        # a plain space after a private use symbol lets kitty draw it over two cells
++        ans = f'{sym} '
++        if num > 1:
++            ans += f'{num} '
++        if record.state is State.working and record.progress is not None:
++            ans += f'{record.progress}% '
++        return ans
++    if record.state is State.idle:
+         return ''
+     if record.state is State.blocked:
+         sym = '\uf071'
+@@ -305,7 +326,10 @@ def status_symbol(record: Record | None,
+     return ans
+ 
+ 
+-def combined_status_symbol(statuses: Iterable[ProgramStatus]) -> str:
++def combined_status_symbol(
++    statuses: Iterable[ProgramStatus], custom: dict[str, tuple[int, str, str]] | None = None,
++    colorize: Callable[[str | None], str] | None = None,
++) -> str:
+     """
+     The most urgent status of several windows, along with the number of
+     windows in that status. Ties are broken by the most recently updated record.
+@@ -314,4 +338,4 @@ def combined_status_symbol(statuses: Ite
+     if not items:
+         return ''
+     best = max(items, key=lambda x: x[1])[0]
+-    return status_symbol(best, sum(1 for r, _ in items if r.state is best.state))
++    return status_symbol(best, sum(1 for r, _ in items if r.state is best.state), custom, colorize)
+Index: kitty-0.50.0/kitty/tab_bar.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/tab_bar.py
++++ kitty-0.50.0/kitty/tab_bar.py
+@@ -294,7 +294,13 @@ class TabAccessor:
+         from .program_status import combined_status_symbol
+ 
+         tab = get_boss().tab_for_id(self.tab_id)
+-        return combined_status_symbol(w.program_status for w in tab) if tab else ''
++        if not tab:
++            return ''
++
++        def colorize(color: str | None) -> str:
++            return Formatter.fg.tab if color is None else getattr(Formatter.fg, '_' + color[1:])
++
++        return combined_status_symbol((w.program_status for w in tab), get_options().sgl__program_status_symbol, colorize)
+ 
+     @property
+     def children_mem_usage(self) -> str:
+Index: kitty-0.50.0/kitty_tests/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty_tests/program_status.py
++++ kitty-0.50.0/kitty_tests/program_status.py
+@@ -208,3 +208,32 @@ class TestProgramStatus(BaseTest):
+         w.apply(parse_report('state=working:id=x:progress=30'))
+         self.ae(combined_status_symbol([w]), '\uf110  30% ')
+         self.ae([d['id'] for d in w.as_list()], ['y', 'x'])
++
++    def test_sgl_program_status_symbol(self):
++        from kitty.options.utils import sgl__program_status_symbol as parse
++        self.ae(dict(parse('working U+F0184 #4A90E2 Symbols Nerd Font Mono')), {'working': (0xF0184, '#4a90e2', 'Symbols Nerd Font Mono')})
++        self.ae(dict(parse('idle U+25CB none')), {'idle': (0x25CB, 'none', '')})
++        for bad in ('working', 'working U+F0184', 'bogus U+F0184 none', 'working F0184 none', 'working U+F0184 notacolor'):
++            with self.assertRaises(ValueError, msg=bad):
++                tuple(parse(bad))
++        custom = dict(parse('done U+2713 #00ff00'))
++        col = lambda c: '<reset>' if c is None else f'<{c}>'
++        self.ae(status_symbol(Record(state=State.done), 1, custom, col), '<#00ff00>\u2713<reset> ')
++        self.ae(status_symbol(Record(state=State.done), 3, custom, col), '<#00ff00>\u2713<reset> 3 ')
++        self.ae(status_symbol(Record(state=State.done), 1, custom), '\u2713 ')
++        # states without a custom glyph keep the default; idle stays empty
++        self.ae(status_symbol(Record(state=State.idle), 1, custom, col), '')
++        self.ae(status_symbol(Record(state=State.error), 1, custom, col), status_symbol(Record(state=State.error)))
++        custom = dict(parse('idle U+25CB none'))
++        self.ae(status_symbol(Record(state=State.idle), 1, custom, col), '\u25cb ')
++        # from kitty.conf
++        from kitty.config import load_config
++        import tempfile, os
++        with tempfile.TemporaryDirectory() as d:
++            path = os.path.join(d, 'kitty.conf')
++            with open(path, 'w') as f:
++                f.write('sgl__program_status_symbol working U+F0184 #4a90e2 Symbols Nerd Font Mono\nsgl__program_status_symbol done U+F058 #3fb950\n')
++            opts = load_config(path)
++        self.ae(opts.sgl__program_status_symbol['working'], (0xF0184, '#4a90e2', 'Symbols Nerd Font Mono'))
++        self.ae(opts.sgl__program_status_symbol['done'], (0xF058, '#3fb950', ''))
++

@@ -1,0 +1,44 @@
+Index: kitty-0.50.0/kitty/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/program_status.py
++++ kitty-0.50.0/kitty/program_status.py
+@@ -248,7 +248,17 @@ class ProgramStatus:
+         return self.remove(lambda r: r.state in TRANSIENT_STATES)
+ 
+     def on_seen_by_user(self) -> bool:
+-        return self.remove(lambda r: r.state in UNSEEN_STATES)
++        # Local change: once the user has seen a finished or failed root record it becomes idle instead of
++        # vanishing, so that the window keeps showing that its program is waiting. Other records are removed.
++        changed = False
++        for rid, r in tuple(self.records.items()):
++            if r.state in UNSEEN_STATES:
++                if rid:
++                    self.discard(rid)
++                else:
++                    self.records[rid] = Record(id=rid, state=State.idle, app=r.app)
++                changed = True
++        return changed
+ 
+     def app_for(self, record: Record) -> str:
+         "The app of a record, inherited from its nearest ancestor if absent"
+Index: kitty-0.50.0/kitty_tests/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty_tests/program_status.py
++++ kitty-0.50.0/kitty_tests/program_status.py
+@@ -141,6 +141,16 @@ class TestProgramStatus(BaseTest):
+         self.assertFalse(ps.on_process_exit_or_prompt())
+         self.assertTrue(ps.on_seen_by_user())
+         self.assertFalse(ps)
++        # a seen root record becomes idle, keeping its app
++        apply('state=done:app=claude-code')
++        self.assertTrue(ps.on_seen_by_user())
++        self.ae(ps.records[''].state, State.idle)
++        self.ae(ps.records[''].app, 'claude-code')
++        self.assertFalse(ps.on_seen_by_user())
++        apply('state=error')
++        self.assertTrue(ps.on_seen_by_user())
++        self.ae(ps.records[''].state, State.idle)
++        apply('state=clear')
+         # the least recently updated record is removed past the cap
+         for i in range(MAX_RECORDS):
+             apply(f'state=idle:id=r{i}')

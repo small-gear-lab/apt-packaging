@@ -140,6 +140,22 @@ then `build`. The packaging is not under git yet.
 | `0015-remove-toolchain-directive.patch` | drops the `toolchain` line of `go.mod` (the Debian patch for it no longer applied; the line names a new toolchain in each release, so redo the patch for every version) |
 | `0016-ime-preedit-straight-underline-no-italic.patch` | 0.49 draws IME pre-edit text italic with a dashed underline (hard-coded in `screen_draw_overlay_line`, no option). Now: straight underline, no italic |
 | `0017-ime-preedit-mark-cursor-cell.patch` | draws the one code point at the IME cursor in reverse video during conversion |
+| `0018-program-status-seen-becomes-idle.patch` | OSC 7501 (program status): when the user has seen a done/error **root** record (key press, focus) it becomes `idle` instead of being removed. Non-root records are still removed. Test added in `kitty_tests/program_status.py` |
+| `0019-sgl-program-status-symbol-option.patch` | new local option `sgl__program_status_symbol state U+codepoint color [Font Family]` (the `sgl__` prefix marks options that are not upstream). `{tab.program_status}` returns the colored glyph; a given font family is mapped like `symbol_map` (`fonts/render.py: create_symbol_map`, applied after `symbol_map`) |
+
+Notes on 0018/0019:
+
+- 0019 edits the generated `kitty/options/types.py` and `kitty/options/parse.py` **by hand** (option name list, class attribute, defaults, parser method). `gen/config.py` ends with `autoformat`, which would rewrite the whole tree. Check both files on every kitty update; if upstream changes the generator output, redo them (or run `gen/config.py` in a scratch copy and diff).
+- The option key must start with a letter (`key_pat` in `kitty/conf/utils.py`), so a leading underscore is not possible; `sgl__` was chosen.
+- A private-use glyph followed by a plain space is drawn over two cells; the glyph code in 0019 emits `glyph + ' '` for that reason.
+- Tests: `python3 test.py --module program_status` and `--module options` in the work tree (run with `env -i`).
+- The glyphs used by `sgl__program_status_symbol` live in our own font package `fonts-sgl-status-icons`
+  (`packaging/fonts-sgl-status-icons/`, family "SGL Status Icons", private use area U+E900-E9FF). Its metrics must equal
+  Symbols Nerd Font Mono (upm 2048, ascent 1638, descent 410, advance 2048): kitty scales a symbol_map font by its own metrics,
+  so other values draw the glyphs smaller and lower. kitty does not depend on it yet (a `Recommends` would need a kitty rebuild).
+- A kitty that is running keeps the font file it loaded: after replacing or upgrading the font, restart kitty; a config reload is not
+  enough (the icons disappeared once after the font file was overwritten under a running kitty).
+- A running kitty keeps its old code in memory. After `apt upgrade`, every window of the old process must be closed (check `ps -o lstart -C kitty`) before the new patches show.
 
 Notes on 0017:
 
