@@ -1,0 +1,210 @@
+Index: kitty-0.50.0/kitty/options/definition.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/definition.py
++++ kitty-0.50.0/kitty/options/definition.py
+@@ -141,6 +141,25 @@ way as :opt:`symbol_map`. A state that i
+ """,
+ )
+ 
++opt(
++    '+sgl__program_status_seen',
++    'logstream remove',
++    option_type='sgl__program_status_seen',
++    add_to_default=False,
++    long_text="""
++Local option added by the small-gear-lab kitty package, not part of upstream kitty.
++What happens to a finished (:code:`done`) or failed (:code:`error`) record of the
++:ref:`program status protocol <program_status>` once the user has seen it (a key press in
++the window, or the window getting focus). The program is identified by the :code:`app` it
++reports; :code:`*` stands for every program that has no entry of its own. The action is one of
++:code:`idle` (the record becomes an idle one, the default), :code:`keep` (it stays until the
++program reports again or clears it) or :code:`remove` (it is removed, as in upstream kitty).
++This option can be specified multiple times. The syntax is::
++
++    sgl__program_status_seen app action
++""",
++)
++
+ 
+ opt(
+     'disable_ligatures',
+Index: kitty-0.50.0/kitty/options/parse.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/parse.py
++++ kitty-0.50.0/kitty/options/parse.py
+@@ -19,7 +19,7 @@ from kitty.options.utils import (
+     mouse_hide_wait, narrow_symbols, notify_on_cmd_finish, optional_edge_width, parse_font_spec,
+     parse_map, parse_mouse_map, paste_actions, pointer_shape_when_dragging, remap_modifiers,
+     remote_control_password, resize_debounce_time, scrollback_lines, scrollback_pager_history_size,
+-    scrollbar_color, sgl__program_status_symbol, shell_integration, show_hyperlink_targets, store_multiple, symbol_map,
++    scrollbar_color, sgl__program_status_seen, sgl__program_status_symbol, shell_integration, show_hyperlink_targets, store_multiple, symbol_map,
+     tab_activity_symbol, tab_bar_edge, tab_bar_margin_height, tab_bar_min_tabs, tab_fade,
+     tab_font_style, tab_separator, tab_title_template, tab_title_wrap, text_fg_override_threshold,
+     titlebar_color, to_cursor_shape, to_cursor_unfocused_shape, to_font_size, to_layout_names,
+@@ -1353,6 +1353,10 @@ class Parser:
+     def selection_foreground(self, val: str, ans: dict[str, typing.Any]) -> None:
+         ans['selection_foreground'] = to_color_or_none(val)
+ 
++    def sgl__program_status_seen(self, val: str, ans: dict[str, typing.Any]) -> None:
++        for k, v in sgl__program_status_seen(val):
++            ans["sgl__program_status_seen"][k] = v
++
+     def sgl__program_status_symbol(self, val: str, ans: dict[str, typing.Any]) -> None:
+         for k, v in sgl__program_status_symbol(val):
+             ans["sgl__program_status_symbol"][k] = v
+@@ -1670,6 +1674,7 @@ def create_result_dict() -> dict[str, ty
+         'modify_font': {},
+         'narrow_symbols': {},
+         'remote_control_password': {},
++        'sgl__program_status_seen': {},
+         'sgl__program_status_symbol': {},
+         'symbol_map': {},
+         'watcher': {},
+Index: kitty-0.50.0/kitty/options/types.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/types.py
++++ kitty-0.50.0/kitty/options/types.py
+@@ -460,6 +460,7 @@ option_names = (
+     'select_by_word_characters_forward',
+     'selection_background',
+     'selection_foreground',
++    'sgl__program_status_seen',
+     'sgl__program_status_symbol',
+     'shell',
+     'shell_integration',
+@@ -680,6 +681,7 @@ class Options:
+     select_by_word_characters_forward: str = ''
+     selection_background: kitty.fast_data_types.Color | None = Color(255, 250, 205)
+     selection_foreground: kitty.fast_data_types.Color | None = Color(0, 0, 0)
++    sgl__program_status_seen: dict[str, str] = {}
+     sgl__program_status_symbol: dict[str, tuple[int, str, str]] = {}
+     shell: str = '.'
+     shell_integration: frozenset[str] = frozenset({'enabled'})
+@@ -891,6 +893,7 @@ defaults.menu_map = {}
+ defaults.modify_font = {}
+ defaults.narrow_symbols = {}
+ defaults.remote_control_password = {}
++defaults.sgl__program_status_seen = {}
+ defaults.sgl__program_status_symbol = {}
+ defaults.symbol_map = {}
+ defaults.watcher = {}
+Index: kitty-0.50.0/kitty/options/utils.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/options/utils.py
++++ kitty-0.50.0/kitty/options/utils.py
+@@ -1293,6 +1293,22 @@ def symbol_map(val: str) -> Iterable[tup
+ SGL_PROGRAM_STATUS_STATES = ('idle', 'working', 'blocked', 'done', 'error')
+ 
+ 
++SGL_PROGRAM_STATUS_SEEN_ACTIONS = ('idle', 'keep', 'remove')
++
++
++def sgl__program_status_seen(val: str) -> Iterable[tuple[str, str]]:
++    # Local option (small-gear-lab package): app (or *), action
++    parts = val.split()
++    if len(parts) != 2:
++        raise ValueError('must have an app name (or *) and an action')
++    app, action = parts
++    if action not in SGL_PROGRAM_STATUS_SEEN_ACTIONS:
++        raise ValueError(f'unknown action {action!r}, must be one of {", ".join(SGL_PROGRAM_STATUS_SEEN_ACTIONS)}')
++    if app != '*' and not re.fullmatch(r'[A-Za-z0-9_.+-]+', app):
++        raise ValueError(f'{app!r} is not a valid app name')
++    yield app, action
++
++
+ def sgl__program_status_symbol(val: str) -> Iterable[tuple[str, tuple[int, str, str]]]:
+     # Local option (small-gear-lab package): state, codepoint, color [, font family]
+     parts = val.split()
+Index: kitty-0.50.0/kitty/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty/program_status.py
++++ kitty-0.50.0/kitty/program_status.py
+@@ -248,16 +248,23 @@ class ProgramStatus:
+         return self.remove(lambda r: r.state in TRANSIENT_STATES)
+ 
+     def on_seen_by_user(self) -> bool:
+-        # Local change: once the user has seen a finished or failed root record it becomes idle instead of
+-        # vanishing, so that the window keeps showing that its program is waiting. Other records are removed.
++        # Local change: what happens to a done/error record once the user has seen it depends on the app that
++        # reported it, see the sgl__program_status_seen option. The default is that a root record becomes
++        # idle instead of vanishing, so that the window keeps showing that its program is waiting.
++        actions = seen_actions()
+         changed = False
+         for rid, r in tuple(self.records.items()):
+-            if r.state in UNSEEN_STATES:
+-                if rid:
+-                    self.discard(rid)
+-                else:
+-                    self.records[rid] = Record(id=rid, state=State.idle, app=r.app)
+-                changed = True
++            if r.state not in UNSEEN_STATES:
++                continue
++            app = self.app_for(r)
++            action = actions.get(app) or actions.get('*') or 'idle'
++            if action == 'keep':
++                continue
++            if action == 'idle' and not rid:
++                self.records[rid] = Record(id=rid, state=State.idle, app=r.app)
++            else:
++                self.discard(rid)
++            changed = True
+         return changed
+ 
+     def app_for(self, record: Record) -> str:
+@@ -287,6 +294,15 @@ class ProgramStatus:
+         return ans
+ 
+ 
++def seen_actions() -> dict[str, str]:
++    "The sgl__program_status_seen option: app (or *) -> idle, keep or remove. Empty when there are no options (tests)."
++    try:
++        from .fast_data_types import get_options
++        return get_options().sgl__program_status_seen
++    except Exception:
++        return {}
++
++
+ def status_symbol(
+     record: Record | None, num: int = 1, custom: dict[str, tuple[int, str, str]] | None = None,
+     colorize: Callable[[str | None], str] | None = None,
+Index: kitty-0.50.0/kitty_tests/program_status.py
+===================================================================
+--- kitty-0.50.0.orig/kitty_tests/program_status.py
++++ kitty-0.50.0/kitty_tests/program_status.py
+@@ -209,6 +209,36 @@ class TestProgramStatus(BaseTest):
+         self.ae(combined_status_symbol([w]), '\uf110  30% ')
+         self.ae([d['id'] for d in w.as_list()], ['y', 'x'])
+ 
++    def test_sgl_program_status_seen(self):
++        from kitty.options.utils import sgl__program_status_seen as parse
++        self.ae(dict(parse('logstream remove')), {'logstream': 'remove'})
++        self.ae(dict(parse('* keep')), {'*': 'keep'})
++        for bad in ('logstream', 'logstream bogus', 'bad/app remove', 'a b c'):
++            with self.assertRaises(ValueError, msg=bad):
++                tuple(parse(bad))
++        import kitty.program_status as m
++        ps = ProgramStatus()
++
++        def run(actions, report, expect_state, expect_changed=True):
++            old = m.seen_actions
++            m.seen_actions = lambda: actions
++            try:
++                ps.clear()
++                ps.apply(parse_report(report))
++                self.ae(ps.on_seen_by_user(), expect_changed)
++            finally:
++                m.seen_actions = old
++            self.ae(ps.records[''].state if '' in ps.records else None, expect_state)
++        # default: idle
++        run({}, 'state=error:app=logstream', State.idle)
++        # per app
++        run({'logstream': 'remove'}, 'state=error:app=logstream', None)
++        run({'logstream': 'remove'}, 'state=done:app=claude-code', State.idle)
++        run({'logstream': 'keep'}, 'state=error:app=logstream', State.error, expect_changed=False)
++        # * applies to apps without an entry; an entry of the app wins
++        run({'*': 'remove'}, 'state=done:app=x', None)
++        run({'*': 'remove', 'claude-code': 'idle'}, 'state=done:app=claude-code', State.idle)
++
+     def test_sgl_program_status_symbol(self):
+         from kitty.options.utils import sgl__program_status_symbol as parse
+         self.ae(dict(parse('working U+F0184 #4A90E2 Symbols Nerd Font Mono')), {'working': (0xF0184, '#4a90e2', 'Symbols Nerd Font Mono')})
