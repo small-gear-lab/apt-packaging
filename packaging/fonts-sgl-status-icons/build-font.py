@@ -29,7 +29,9 @@ f.version = version
 f.em = ASCENT + DESCENT
 f.ascent = ASCENT
 f.descent = DESCENT
-f.copyright = 'Copyright (c) small-gear-lab. Glyphs drawn for personal use.'
+f.copyright = 'Copyright (c) 2026 Small Gear Lab, Marie'
+f.appendSFNTName('English (US)', 'License', 'MIT OR Apache-2.0')
+f.appendSFNTName('English (US)', 'License URL', 'https://github.com/small-gear-lab/apt-packaging')
 for cp, svg, name in GLYPHS:
     g = f.createChar(cp, name)
     g.importOutlines(f'{outline_dir}/{svg}')

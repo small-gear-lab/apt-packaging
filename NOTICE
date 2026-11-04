@@ -5,6 +5,7 @@ Copyright (c) 2026 Marie
 This repository holds build recipes for packages of other people's software. The software itself is not
 part of it: sources are downloaded when a package is built, and the built packages are not kept here.
 The recipes written here are licensed under MIT OR Apache-2.0 (see LICENSE-MIT and LICENSE-APACHE).
+The drawings in packaging/fonts-sgl-status-icons/src and the font built from them are covered by the same terms.
 
 The following third-party material is included and keeps its own license.
 
@@ -15,7 +16,7 @@ packaging/curl/debian/ and packaging/kitty/debian/
     curl   - upstream: Daniel Stenberg and many contributors, under the curl license;
              debian/: the Debian curl maintainers and Ubuntu developers.
     kitty  - upstream: Kovid Goyal, GPL-3+; debian/: James McCoy and Maytham Alsudany, with Ubuntu's changes.
-  The kitty patches 0016 and 0017 written here change kitty's own source and follow kitty's license (GPL-3).
+  The kitty patches 0016 to 0019 written here change kitty's own source and follow kitty's license (GPL-3).
 
 Symbols Nerd Font Mono (SymbolsNerdFontMono-Regular.ttf) in the kitty package
   Neither the font nor its license documents are kept in this repository. packaging/kitty/build.sh takes the
