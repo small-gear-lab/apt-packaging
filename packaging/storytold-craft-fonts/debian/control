@@ -1,0 +1,35 @@
+Source: storytold-craft-fonts
+Section: metapackages
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+Standards-Version: 4.7.3
+Homepage: https://github.com/storytold/craft-fonts
+Rules-Requires-Root: no
+
+Package: storytold-craft-fonts
+Architecture: all
+Multi-Arch: foreign
+Depends: ${misc:Depends},
+         fonts-shippori-mincho,
+         fonts-morisawa-bizud-gothic,
+         fonts-morisawa-bizud-mincho,
+         fonts-noto-cjk,
+         fonts-noto-core,
+         fonts-noto-extra,
+         fonts-nanum,
+Description: font families of storytold's craft-fonts, from the distribution's packages
+ storytold's craft-fonts (https://github.com/storytold/craft-fonts) is the font
+ set that PhotoCraft and the other Craft apps are built and tested with. This
+ metapackage installs the same families, as packaged fonts, instead of the
+ files of that repository:
+ .
+  - Shippori Mincho (fonts-shippori-mincho)
+  - BIZ UDPGothic and BIZ UDMincho (fonts-morisawa-bizud-gothic, -mincho)
+  - Noto Sans CJK SC (fonts-noto-cjk)
+  - Noto Sans Symbols 2 (fonts-noto-core)
+  - Noto Sans Arabic, Thai, Georgian, Hebrew, Devanagari and Symbols
+    (fonts-noto-extra)
+  - NanumGothic (fonts-nanum)
+ .
+ It contains no files of its own.

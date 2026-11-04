@@ -1,0 +1,8 @@
+fonts-shippori-mincho (0~git20260930.9710da1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of Shippori Mincho (FONTDASU), the five weights of the
+    Google Fonts repository at commit 9710da1 (2026-09-30), unmodified.
+  * Ubuntu has no package for it. fonts-craft depends on this one, for the
+    fonts that PhotoCraft's own font set (storytold/craft-fonts) names.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 04 Nov 2026 20:00:00 +0900

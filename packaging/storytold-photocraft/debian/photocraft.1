@@ -1,0 +1,21 @@
+.TH PHOTOCRAFT 1 "November 2026" "PhotoCraft 0.20.1" "User Commands"
+.SH NAME
+photocraft \- open-source image editor with layers, masks and brushes
+.SH SYNOPSIS
+.B photocraft
+.RI [ file ...]
+.SH DESCRIPTION
+.B photocraft
+starts PhotoCraft, a native image editor written in Rust. It opens and saves layered PSD and PSB files, and works
+with layers, masks, adjustment layers, layer styles, type and brushes. Files given on the command line are opened
+as tabs, in the running window when PhotoCraft is already running.
+.PP
+PhotoCraft is in early alpha.
+.SH FILES
+.TP
+.I ~/.config/photocraft/
+Settings and logs (\fIlogs/photocraft.log\fR).
+.SH SEE ALSO
+.BR photocraft-cli (1)
+.PP
+https://getartcraft.com/apps/photocraft

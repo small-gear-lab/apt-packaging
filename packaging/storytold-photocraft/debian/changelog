@@ -1,0 +1,19 @@
+storytold-photocraft (0.20.1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of PhotoCraft 0.20.1, an open-source image editor
+    written in Rust (storytold/photocraft), from the upstream release tag.
+  * Built offline with the local rustup toolchain from the crates that
+    build.sh vendored.
+  * Two packages: storytold-photocraft (the editor window) and
+    storytold-photocraft-cli (the headless command runner and MCP server, with
+    its man pages and shell completions). The packages carry the storytold
+    prefix of their upstream organisation; the programs keep their names
+    (/usr/bin/photocraft, /usr/bin/photocraft-cli). The CLI has no windowing or
+    GPU dependencies; the editor recommends it.
+  * HEIC/HEIF support is built in (--features heif), as upstream's own
+    packages do.
+  * debian/copyright: gen-crate-licenses.py writes a paragraph for each Rust
+    crate that is linked in, and debian/photocraft.docs installs the license
+    files of those crates.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 04 Nov 2026 18:00:00 +0900

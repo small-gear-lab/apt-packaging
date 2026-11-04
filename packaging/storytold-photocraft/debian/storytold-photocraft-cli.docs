@@ -1,0 +1,3 @@
+debian/vendor-licenses
+assets/dict/LICENSE-SCOWL.txt
+crates/algo/data/LICENSE-libfacedetection.txt

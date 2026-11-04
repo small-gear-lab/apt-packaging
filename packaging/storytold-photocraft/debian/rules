@@ -1,0 +1,58 @@
+#!/usr/bin/make -f
+# photocraft: the GUI and photocraft-cli. Built offline with the builder's own Rust toolchain, from the crates that
+# build.sh vendored into vendor/ (.cargo/config.toml points cargo at them).
+
+# No LTO: some crates have C code (the cc crate) that rustc links, and LTO objects of the C compiler do not mix with that.
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all optimize=-lto
+include /usr/share/dpkg/architecture.mk
+include /usr/share/dpkg/buildflags.mk
+export CFLAGS CPPFLAGS
+
+export CARGO_NET_OFFLINE = true
+export CARGO_HOME ?= $(CURDIR)/debian/cargo-home
+APP_ID = ai.storyteller.photocraft
+LINUX = packaging/linux
+GUI = $(CURDIR)/debian/storytold-photocraft
+CLI = $(CURDIR)/debian/storytold-photocraft-cli
+# The release date written into the AppStream metadata: the date of the changelog entry, in UTC.
+DATE = $(shell date -u -d "$$(dpkg-parsechangelog -S Date)" +%Y-%m-%d)
+UPSTREAM_VERSION = $(shell dpkg-parsechangelog -S Version | sed -E 's/-[^-]*$$//')
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+# The example writes photocraft-cli's man pages and shell completions. It is built in its own cargo run: built with
+# the binaries, its dev-dependencies' features would be unified into them.
+override_dh_auto_build:
+	cargo build --release --locked --offline -p photocraft -p photocraft-cli --features heif --bins
+	cargo build --release --locked --offline -p photocraft-cli --features heif --example man-and-completions
+	target/release/examples/man-and-completions debian/cli-docs
+
+override_dh_auto_install:
+	install -Dm755 target/release/photocraft $(GUI)/usr/bin/photocraft
+	install -Dm644 $(LINUX)/$(APP_ID).desktop $(GUI)/usr/share/applications/$(APP_ID).desktop
+	install -Dm644 $(LINUX)/$(APP_ID).mime.xml $(GUI)/usr/share/mime/packages/$(APP_ID).xml
+	install -d $(GUI)/usr/share/metainfo
+	sed -e 's/@VERSION@/$(UPSTREAM_VERSION)/g' -e 's/@DATE@/$(DATE)/g' \
+		$(LINUX)/$(APP_ID).metainfo.xml.in > $(GUI)/usr/share/metainfo/$(APP_ID).metainfo.xml
+	install -d $(GUI)/usr/share/icons
+	cp -R assets/app-icon/hicolor $(GUI)/usr/share/icons/
+	install -Dm644 NOTICE $(GUI)/usr/share/doc/storytold-photocraft/NOTICE
+	install -Dm755 target/release/photocraft-cli $(CLI)/usr/bin/photocraft-cli
+	install -Dm644 -t $(CLI)/usr/share/man/man1 debian/cli-docs/*.1
+	install -Dm644 debian/cli-docs/photocraft-cli.bash $(CLI)/usr/share/bash-completion/completions/photocraft-cli
+	install -Dm644 debian/cli-docs/_photocraft-cli $(CLI)/usr/share/zsh/vendor-completions/_photocraft-cli
+	install -Dm644 debian/cli-docs/photocraft-cli.fish $(CLI)/usr/share/fish/vendor_completions.d/photocraft-cli.fish
+	install -Dm644 NOTICE $(CLI)/usr/share/doc/storytold-photocraft-cli/NOTICE
+
+override_dh_auto_test:
+	# upstream's tests are not run in this local build
+
+# The release profile has no debug information, so a -dbgsym package would only hold empty debug files.
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_auto_clean:
+	rm -rf target debian/cargo-home debian/cli-docs

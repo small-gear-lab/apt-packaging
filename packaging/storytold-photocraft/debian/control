@@ -1,0 +1,67 @@
+Source: storytold-photocraft
+Section: graphics
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+# cargo and rustc are not listed: this is built with the builder's own rustup toolchain (see build.sh),
+# which dpkg's dependency check cannot see.
+Build-Depends: debhelper-compat (= 13),
+               pkgconf,
+               libxkbcommon-dev,
+               libwayland-dev,
+               libx11-dev,
+               libxi-dev,
+               libxrandr-dev,
+               libgl1-mesa-dev,
+               libgtk-3-dev,
+Standards-Version: 4.7.3
+Homepage: https://getartcraft.com/apps/photocraft
+Rules-Requires-Root: no
+
+Package: storytold-photocraft
+Architecture: amd64
+# Windowing (X11/Wayland, xkbcommon) and the GPU (Vulkan, EGL/GL) are loaded at run time with dlopen, so
+# dpkg-shlibdeps cannot see them: they are listed here, as upstream's nfpm.yaml does for its own .deb.
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         libxkbcommon0,
+         libxkbcommon-x11-0,
+         libwayland-client0,
+         libx11-6,
+         libx11-xcb1,
+         libxcb1,
+         libxcursor1,
+         libxi6,
+         libvulkan1 | libegl1,
+Recommends: storytold-photocraft-cli (= ${binary:Version}),
+            storytold-craft-fonts,
+            mesa-vulkan-drivers,
+            libegl-mesa0,
+            xdg-desktop-portal,
+Description: open-source image editor with layers, masks and brushes
+ PhotoCraft is a native image editor written in Rust, aimed at the kind of work
+ Photoshop is used for. It has layers, masks, adjustment layers, layer styles,
+ type and brushes, opens and saves layered PSD/PSB files, handles 8, 16 and
+ 32-bit documents and composites on the GPU (wgpu).
+ .
+ The headless converter, command runner and MCP server that drive the same
+ editor commands are in the storytold-photocraft-cli package.
+ .
+ PhotoCraft is in early alpha: much of the feature set exists, but upstream
+ says it is not yet a replacement for daily professional work.
+
+Package: storytold-photocraft-cli
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Suggests: storytold-photocraft (= ${binary:Version}),
+         storytold-craft-fonts,
+Description: headless command runner and MCP server for the PhotoCraft image editor
+ photocraft-cli runs PhotoCraft's editor commands without a window: it converts
+ and inspects images, runs the same 500 or so commands as the editor (layers,
+ masks, adjustments, painting strokes and so on) and reads or writes layered
+ PSD/PSB files.
+ .
+ photocraft-cli mcp starts an MCP server on standard input and output, so that
+ an AI agent can drive the editor engine, headless or attached to a running
+ PhotoCraft window, and see the result as an image. It has no windowing or GPU
+ dependencies. The storytold-photocraft package provides the editor window.

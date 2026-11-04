@@ -1,0 +1,7 @@
+storytold-craft-fonts (1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial metapackage: the font families of storytold/craft-fonts (the
+    default set of the Craft apps), as the distribution's font packages,
+    plus fonts-shippori-mincho from this repository (Ubuntu has none).
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 04 Nov 2026 20:30:00 +0900

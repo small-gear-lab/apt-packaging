@@ -1,0 +1,5 @@
+#!/usr/bin/make -f
+# A metapackage: it only depends on other packages, and has nothing to build or install.
+
+%:
+	dh $@

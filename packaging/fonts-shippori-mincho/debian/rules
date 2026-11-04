@@ -1,0 +1,12 @@
+#!/usr/bin/make -f
+# fonts-shippori-mincho: the font files that build.sh fetched (and checked) into upstream/, installed as they are.
+
+%:
+	dh $@
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -Dm644 -t debian/fonts-shippori-mincho/usr/share/fonts/truetype/shippori-mincho upstream/*.ttf
+
+override_dh_auto_test:

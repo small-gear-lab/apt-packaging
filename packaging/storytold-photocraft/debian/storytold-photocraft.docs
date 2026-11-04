@@ -1,0 +1,9 @@
+debian/vendor-licenses
+ATTRIBUTION.md
+assets/fonts/OFL-Inter.txt
+assets/fonts/OFL-JetBrainsMono.txt
+assets/icons/LICENSE-lucide.txt
+assets/icons/LICENSE-noun-magnetic-lasso.txt
+assets/icons/LICENSE-symmetry-axes.txt
+assets/dict/LICENSE-SCOWL.txt
+crates/algo/data/LICENSE-libfacedetection.txt
