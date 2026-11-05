@@ -55,6 +55,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
 Suggests: storytold-photocraft (= ${binary:Version}),
          storytold-craft-fonts,
+Enhances: storytold-photocraft,
 Description: headless command runner and MCP server for the PhotoCraft image editor
  photocraft-cli runs PhotoCraft's editor commands without a window: it converts
  and inspects images, runs the same 500 or so commands as the editor (layers,

@@ -1,3 +1,12 @@
+storytold-photocraft (0.20.1-1~smallgearlab2) resolute; urgency=medium
+
+  * storytold-photocraft-cli: Enhances storytold-photocraft, next to the
+    existing Suggests. The CLI is not a plug-in, but it does add headless
+    commands and the MCP server to the editor (it can attach to a running
+    window), so apt's reverse view of the relation now shows it too.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Thu, 05 Nov 2026 09:27:00 +0900
+
 storytold-photocraft (0.20.1-1~smallgearlab1) resolute; urgency=medium
 
   * Initial packaging of PhotoCraft 0.20.1, an open-source image editor
