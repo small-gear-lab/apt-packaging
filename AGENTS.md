@@ -18,7 +18,8 @@ package family. This file is only the working rules.
   a change to `debian/control`, `debian/changelog` or other metadata only. It keeps the work tree of the last build
   (and its compiled objects), copies `debian/` in again and builds, so the compiler runs only for what changed.
   `configure` and the packaging steps still run: curl, for example, takes about a minute and a half this way
-  (24 files compiled), a package that is only repacked takes seconds.
+  (24 files compiled), a package that is only repacked takes seconds. It saves nothing where `Configure` makes
+  everything again: openssl4 compiled about 2600 files and took 2m38s with it.
 - Do not use `--no-clean` when the source, a patch, the compiler flags or `debian/rules` changed: build fresh.
   Where a package is built in a work tree that is always kept (`mozc`) or has nothing to compile (the fonts
   packages, `kitty-slang-compiler`), the option is accepted and does nothing.
