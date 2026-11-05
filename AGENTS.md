@@ -16,8 +16,9 @@ package family. This file is only the working rules.
   few take positional arguments (a version, a revision), so an unknown option is read as one of those.
 - `build.sh build` starts from a fresh work tree. **Add `--no-clean` when the binaries do not have to be rebuilt**:
   a change to `debian/control`, `debian/changelog` or other metadata only. It keeps the work tree of the last build
-  (and its compiled objects), copies `debian/` in again and builds, which takes seconds instead of a full compile.
-  For the Rust packages that is the difference between minutes and a few seconds.
+  (and its compiled objects), copies `debian/` in again and builds, so the compiler runs only for what changed.
+  `configure` and the packaging steps still run: curl, for example, takes about a minute and a half this way
+  (24 files compiled), a package that is only repacked takes seconds.
 - Do not use `--no-clean` when the source, a patch, the compiler flags or `debian/rules` changed: build fresh.
   Where a package is built in a work tree that is always kept (`mozc`) or has nothing to compile (the fonts
   packages, `kitty-slang-compiler`), the option is accepted and does nothing.

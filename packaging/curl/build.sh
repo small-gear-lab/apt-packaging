@@ -62,15 +62,28 @@ build)
     mkdir -p "$bd"
     cp -f "$orig" "$bd/curl_$version.orig.tar.xz"
     cp -f "$orig.asc" "$bd/curl_$version.orig.tar.xz.asc"
+    kept=0
     if [ "$noclean" = 1 ] && [ -d "$work" ]; then
+        kept=1
         echo "--no-clean: reusing the work tree $work"
     else
         rm -rf "$work"
         tar -xJf "$bd/curl_$version.orig.tar.xz" -C "$bd"
     fi
     # debian/copyright must still describe this version of the source; stop when it does not.
-    python3 -I "$here/check-copyright.py" "$work" "$here/debian/copyright"
-    rsync -a --delete "$here/debian/" "$work/debian/"
+    if [ "$kept" = 1 ]; then
+        # A kept tree holds the build output (debian/build-openssl, debian/build-rustls), which the check would
+        # read as source: check against a clean unpack of the tarball instead.
+        ctmp=$(mktemp -d "$dl/check.XXXXXX")
+        tar -xJf "$orig" -C "$ctmp"
+        python3 -I "$here/check-copyright.py" "$ctmp/curl-$version" "$here/debian/copyright" || { rm -rf "$ctmp"; exit 1; }
+        rm -rf "$ctmp"
+    else
+        python3 -I "$here/check-copyright.py" "$work" "$here/debian/copyright"
+    fi
+    # The two build directories are curl's build output (it builds out of tree, inside debian/): keep them, or a
+    # kept tree would be built from nothing. Everything else of debian/ is synced, debhelper's own state included.
+    rsync -a --delete --exclude='/build-openssl/' --exclude='/build-rustls/' "$here/debian/" "$work/debian/"
     cd "$work"
     # Start from an empty environment, like a real builder. The login shell exports LD_RUN_PATH
     # (ld turns it into RUNPATH: lintian's custom-library-search-path), LD_LIBRARY_PATH, LIBRARY_PATH
