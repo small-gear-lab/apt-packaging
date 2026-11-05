@@ -3,9 +3,14 @@
 #
 #   build.sh save  [version]   copy debian/ from the work tree into this directory
 #                              (run it after changing patches, rules, control or changelog there)
-#   build.sh build [version]   copy debian/ from this directory into the work tree, fetch the font (below),
+#   build.sh build [version] [--no-clean]
+#                              copy debian/ from this directory into the work tree, fetch the font (below),
 #                              write the license documents of the vendored Go modules (gen-vendor-licenses.py),
-#                              clear the old build state and build the debs
+#                              clear the old build state and build the debs. --no-clean keeps build/ and
+#                              linux-package/ (what setup.py made), so that only what changed is compiled again:
+#                              use it when the binaries do not need to be rebuilt (a change to debian/control or
+#                              debian/changelog, say). debhelper's own state is cleared either way, or it would
+#                              skip every step, dh_builddeb included.
 #   build.sh fetch-font [ver]  take the Symbols Nerd Font out of kitty's signed release archive and gather
 #                              the license documents of its Nerd Fonts release
 #
@@ -15,8 +20,18 @@
 # debian/patches (the usual case when only rebuilding). When a patch changed, edit it in the
 # work tree with quilt, run `save`, then `build`.
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
+noclean=0
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then noclean=1; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 cmd=${1:-}
 version=${2:-0.49.2}
 work=$HOME/.cache/kitty-dl/deb/build/kitty-$version
@@ -143,8 +158,15 @@ build)
     python3 -I "$here/gen-vendor-licenses.py" "$work" "$here/debian/copyright" \
         "$here/vendor-license-overrides.tsv" "$here/vendor-holders.tsv"
     cd "$work"
-    # debhelper skips the build step when it finds its stamps, so clear them first.
-    rm -rf build linux-package debian/.debhelper debian/tmp debian/debhelper-build-stamp debian/files
+    # debhelper skips the build step when it finds its stamps, so clear them first (also with --no-clean: with the
+    # stamps kept it would skip every step and the debs would not be made again). --no-clean keeps only what
+    # setup.py built.
+    if [ "$noclean" = 1 ]; then
+        echo "--no-clean: keeping build/ and linux-package/"
+    else
+        rm -rf build linux-package
+    fi
+    rm -rf debian/.debhelper debian/tmp debian/debhelper-build-stamp debian/files
     for d in kitty kitty-doc kitty-terminfo kitty-shell-integration; do rm -rf "debian/$d"; done
     # An empty environment, like a real builder: the login shell exports LD_RUN_PATH (ld turns it into
     # RUNPATH /usr/local/lib), LD_LIBRARY_PATH, LIBRARY_PATH, PKG_CONFIG_PATH and a pyenv PATH, and
@@ -163,7 +185,7 @@ fetch-font)
     echo "font: $nerd_cache/$nerd_ttf (notices: $nerd_notices)"
     ;;
 *)
-    echo "usage: $0 save|build|fetch-font [version]" >&2
+    echo "usage: $0 save|build|fetch-font [version] [--no-clean]" >&2
     exit 2
     ;;
 esac

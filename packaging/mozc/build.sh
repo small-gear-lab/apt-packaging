@@ -9,8 +9,10 @@
 #                    reset first, so this can be repeated. The dictionaries are the ones their author publishes
 #                    (generate_latest="false"): nothing is built from a Wikipedia dump. They are not pinned;
 #                    the commits that were used are written to dicts.rev in the work directory
-#   build.sh build   copy debian/ from this directory into the tree and build the debs (the build needs the
-#                    network the first time: Bazel fetches its dependencies)
+#   build.sh build [--no-clean]
+#                    copy debian/ from this directory into the tree and build the debs (the build needs the
+#                    network the first time: Bazel fetches its dependencies). --no-clean is accepted for the
+#                    same interface as the other build.sh and changes nothing: this build never cleans
 #
 # debian/ in this directory is the source of truth (edit it here, then `build`). The work directory is not thrown away between builds on
 # purpose: Bazel's cache is keyed on its path, and `bazel clean` (what debian/rules runs as the clean step) would
@@ -20,8 +22,19 @@
 #   sgl-reprepro includedeb resolute $MOZC_WORK/*_<version>_*.deb
 # (Not `apt build-dep mozc`: it pulls in fcitx-libs-dev, which removes fcitx5 and fcitx5-mozc.)
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
+# --no-clean (build only): accepted so that every build.sh takes it, and a no-op here, because the work directory is
+# always kept and the build always runs with -nc (see above).
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then echo "--no-clean: no effect, mozc never cleans" >&2; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 cmd=${1:-}
 work=${MOZC_WORK:-$HOME/.local/src/mozc/build/mozc-ut-resolute}
 tree=$work/mozc

@@ -4,7 +4,9 @@
 #   build.sh fetch [version]   download Ubuntu's source package (orig tarball + signature) into
 #                              ~/.cache/openssl4-dl/orig/ and verify the tarball against OpenSSL's release key
 #                              (debian/upstream/signing-key.asc, throw-away GNUPGHOME)
-#   build.sh build [version]   unpack the tarball afresh, copy debian/ into it and build libssl4
+#   build.sh build [version] [--no-clean]
+#                              unpack the tarball afresh (or, with --no-clean, keep the work tree of the last
+#                              build), copy debian/ into it and build libssl4
 #
 # <version> is the upstream version (default 4.0.3); the Ubuntu revision is the one in debian/changelog.
 # debian/ in this directory is the source of truth; the work tree is thrown away on every build.
@@ -12,8 +14,23 @@
 #   sgl-reprepro includedeb resolute ~/.cache/openssl4-dl/deb/build/libssl4_*.deb
 # (see ~/.local/share/apt/docs/openssl4-build.md)
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
+# --no-clean (build only): keep the work tree of the last build (the unpacked source and its build output), so that
+# only what changed is compiled again. Use it when the binaries do not need to be rebuilt (a change to debian/control
+# or debian/changelog, say). debian/ is always synced from this directory, also in a kept tree.
+noclean=0
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then noclean=1; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
+nc=()
+[ "$noclean" = 1 ] && nc=(-nc)
 cmd=${1:-}
 version=${2:-4.0.3}
 ubuntu_rev=1ubuntu1
@@ -45,9 +62,13 @@ build)
     mkdir -p "$bd"
     cp -f "$orig" "$bd/openssl_$version.orig.tar.gz"
     cp -f "$orig.asc" "$bd/openssl_$version.orig.tar.gz.asc"
-    rm -rf "$work"
-    tar -xzf "$bd/openssl_$version.orig.tar.gz" -C "$bd"
-    rsync -a "$here/debian/" "$work/debian/"
+    if [ "$noclean" = 1 ] && [ -d "$work" ]; then
+        echo "--no-clean: reusing the work tree $work"
+    else
+        rm -rf "$work"
+        tar -xzf "$bd/openssl_$version.orig.tar.gz" -C "$bd"
+    fi
+    rsync -a --delete "$here/debian/" "$work/debian/"
     cd "$work"
     # Start from an empty environment, like a real builder: the login shell exports LD_RUN_PATH
     # (ld turns it into RUNPATH), LD_LIBRARY_PATH, LIBRARY_PATH and PKG_CONFIG_PATH, and /usr/local must not leak in.
@@ -57,11 +78,11 @@ build)
         PATH=/usr/sbin:/usr/bin:/sbin:/bin \
         PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig \
         DEB_BUILD_OPTIONS="nocheck parallel=$(nproc)" \
-        dpkg-buildpackage -us -uc -b
+        dpkg-buildpackage -us -uc -b ${nc[@]+"${nc[@]}"}
     echo "debs are in $bd"
     ;;
 *)
-    echo "usage: $0 fetch|build [version]" >&2
+    echo "usage: $0 fetch|build [version] [--no-clean]" >&2
     exit 2
     ;;
 esac

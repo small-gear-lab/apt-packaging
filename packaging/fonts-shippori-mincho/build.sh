@@ -2,11 +2,23 @@
 # Build the fonts-shippori-mincho deb from the font files of google/fonts at a pinned commit.
 #
 #   build.sh fetch   download the files, check each against its git blob hash (below), remember the sha256
-#   build.sh build   fresh work tree, build the deb (no compiler involved: the files are installed as they are)
+#   build.sh build [--no-clean]
+#                    fresh work tree, build the deb (no compiler involved: the files are installed as they are).
+#                    --no-clean is accepted for the same interface as the other build.sh and changes nothing
 #
 # Layout: ~/.cache/fonts-shippori-mincho-dl/{orig,deb/build}. Add the deb with
 #   sgl-reprepro includedeb resolute-testing ~/.cache/fonts-shippori-mincho-dl/deb/build/fonts-shippori-mincho_*.deb
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
+# --no-clean: accepted so that every build.sh takes it, and a no-op here: nothing is compiled, the files are installed as they are.
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then echo "--no-clean: no effect (nothing to keep)" >&2; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 
 here=$(cd "$(dirname "$0")" && pwd)
 cmd=${1:-}
@@ -64,7 +76,7 @@ build)
     echo "debs are in $bd"
     ;;
 *)
-    echo "usage: $0 fetch|build" >&2
+    echo "usage: $0 fetch|build [--no-clean]" >&2
     exit 2
     ;;
 esac

@@ -4,14 +4,31 @@
 #
 #   build.sh fetch [version]   download the tag tarball, check it, then `cargo vendor` every crate
 #                              (needs the network; the only step that does)
-#   build.sh build [version]   fresh unpack, check that the local rustc is new enough, build offline
+#   build.sh build [version] [--no-clean]
+#                              fresh unpack (or, with --no-clean, the work tree of the last build), check that
+#                              the local rustc is new enough, build offline
 #
 # debian/ in this directory is the source of truth; the work tree is thrown away on every build.
 # Layout: ~/.cache/rustls-ffi-dl/{orig,deb/build,log}. The debs end up in deb/build/. Add them with
 #   sgl-reprepro includedeb resolute ~/.cache/rustls-ffi-dl/deb/build/*_<version>-*.deb
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
+# --no-clean (build only): keep the work tree of the last build (the unpacked source and its build output), so that
+# only what changed is compiled again. Use it when the binaries do not need to be rebuilt (a change to debian/control
+# or debian/changelog, say). debian/ is always synced from this directory, also in a kept tree.
+noclean=0
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then noclean=1; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
+nc=()
+[ "$noclean" = 1 ] && nc=(-nc)
 cmd=${1:-}
 version=${2:-0.15.7}
 dl=$HOME/.cache/rustls-ffi-dl
@@ -127,10 +144,15 @@ build)
     [ -f "$orig" ] && [ -f "$vend" ] || { echo "run '$0 fetch $version' first" >&2; exit 1; }
     mkdir -p "$bd"
     cp -f "$orig" "$bd/rustls-ffi_$version.orig.tar.gz"
-    rm -rf "$work"
-    tar -xzf "$bd/rustls-ffi_$version.orig.tar.gz" -C "$bd"
-    tar -xJf "$vend" -C "$work"
-    rsync -a "$here/debian/" "$work/debian/"
+    if [ "$noclean" = 1 ] && [ -d "$work/vendor" ]; then
+        echo "--no-clean: reusing the work tree $work"
+    else
+        rm -rf "$work"
+        tar -xzf "$bd/rustls-ffi_$version.orig.tar.gz" -C "$bd"
+        tar -xJf "$vend" -C "$work"
+    fi
+    # --delete: the @SOVER@ names below are made again every time, a kept tree must not hold the old ones too.
+    rsync -a --delete "$here/debian/" "$work/debian/"
     cd "$work"
     check_prereqs
     check_toolchain
@@ -155,7 +177,7 @@ build)
     echo "debs are in $bd"
     ;;
 *)
-    echo "usage: $0 fetch|build [version]" >&2
+    echo "usage: $0 fetch|build [version] [--no-clean]" >&2
     exit 2
     ;;
 esac

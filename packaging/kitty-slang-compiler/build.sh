@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build the kitty-slang-compiler .deb from the official Slang release archive.
 #
-# Usage: build.sh [slang-version] [smallgearlab-number]
+# Usage: build.sh [--no-clean] [slang-version] [smallgearlab-number]
+#        (--no-clean is accepted for the same interface as the other build.sh and changes nothing)
 #        build.sh 2026.14.1 2        ->  kitty-slang-compiler_2026.14.1-1~smallgearlab2_amd64.deb
 #
 # Why this package exists: kitty needs a newer slangc than Ubuntu ships (see
@@ -12,6 +13,16 @@
 # The archive is the glibc-2.27 build from https://github.com/shader-slang/slang/releases.
 # It is checked against the sha256 digest GitHub reports for the asset.
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
+# --no-clean: accepted so that every build.sh takes it, and a no-op here: the package is only a repacked archive.
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then echo "--no-clean: no effect (nothing to keep)" >&2; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 
 version=${1:-2026.14.1}
 number=${2:-1}

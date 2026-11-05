@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build the fonts-sgl-status-icons .deb (the SGL Status Icons font used by kitty's sgl__program_status_symbol).
 #
-# Usage: build.sh [--regen] [version] [debian-revision]
+# Usage: build.sh [--regen] [--no-clean] [version] [debian-revision]
+#        (--no-clean is accepted for the same interface as the other build.sh and changes nothing)
 #        build.sh                     ->  fonts-sgl-status-icons_1.0.0-2_all.deb
 #        build.sh --regen 1.0.1 1     ->  redo outline/ from src/ first (needs inkscape)
 #
@@ -10,6 +11,16 @@
 #                Committed, so building needs only fontforge; --regen redoes them with inkscape.
 # Glyph list and metrics: build-font.py. Output goes to ~/.cache/fonts-sgl-status-icons-build/.
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
+# --no-clean: accepted so that every build.sh takes it, and a no-op here: the font is made again every time, it is quick.
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then echo "--no-clean: no effect (nothing to keep)" >&2; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
 
 here=$(cd "$(dirname "$0")" && pwd)
 regen=0

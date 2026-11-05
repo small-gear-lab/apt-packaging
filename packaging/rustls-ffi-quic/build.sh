@@ -4,7 +4,9 @@
 #
 #   build.sh fetch [rev]   make the source tarball of a tag or commit (default: the one named in REV, or main of
 #                          the repository), then `cargo vendor` every crate (needs the network for that)
-#   build.sh build         fresh unpack, check that the local rustc is new enough, build offline
+#   build.sh build [--no-clean]
+#                          fresh unpack (or, with --no-clean, the work tree of the last build), check that the
+#                          local rustc is new enough, build offline
 #
 # debian/ in this directory is the source of truth; the work tree is thrown away on every build. REV names what
 # the tarball was made from (the first line: a tag such as v0.15.7+quic1, which keeps its commit alive when main is
@@ -14,8 +16,23 @@
 # Layout: ~/.cache/rustls-ffi-quic-dl/{orig,deb/build}. The debs end up in deb/build/. Add them with
 #   sgl-reprepro includedeb resolute ~/.cache/rustls-ffi-quic-dl/deb/build/*_<version>-*.deb
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
+# --no-clean (build only): keep the work tree of the last build (the unpacked source and its build output), so that
+# only what changed is compiled again. Use it when the binaries do not need to be rebuilt (a change to debian/control
+# or debian/changelog, say). debian/ is always synced from this directory, also in a kept tree.
+noclean=0
+args=()
+for a in "$@"; do
+    if [ "$a" = --no-clean ]; then noclean=1; else args+=("$a"); fi
+done
+set -- ${args[@]+"${args[@]}"}
+nc=()
+[ "$noclean" = 1 ] && nc=(-nc)
 cmd=${1:-}
 # the upstream version of rustls-ffi this is based on (its soname), and the version of this source
 version=0.15.7
@@ -122,10 +139,15 @@ build)
     [ -f "$orig" ] && [ -f "$vend" ] || { echo "run '$0 fetch' first" >&2; exit 1; }
     mkdir -p "$bd"
     cp -f "$orig" "$bd/rustls-ffi-quic_$srcversion.orig.tar.xz"
-    rm -rf "$work"
-    tar -xJf "$bd/rustls-ffi-quic_$srcversion.orig.tar.xz" -C "$bd"
-    tar -xJf "$vend" -C "$work"
-    rsync -a "$here/debian/" "$work/debian/"
+    if [ "$noclean" = 1 ] && [ -d "$work/vendor" ]; then
+        echo "--no-clean: reusing the work tree $work"
+    else
+        rm -rf "$work"
+        tar -xJf "$bd/rustls-ffi-quic_$srcversion.orig.tar.xz" -C "$bd"
+        tar -xJf "$vend" -C "$work"
+    fi
+    # --delete: the @SOVER@ names below are made again every time, a kept tree must not hold the old ones too.
+    rsync -a --delete "$here/debian/" "$work/debian/"
     cd "$work"
     check_prereqs
     check_toolchain
@@ -150,7 +172,7 @@ build)
     echo "debs are in $bd"
     ;;
 *)
-    echo "usage: $0 fetch [rev]|build" >&2
+    echo "usage: $0 fetch [rev]|build [--no-clean]" >&2
     exit 2
     ;;
 esac

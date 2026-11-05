@@ -12,6 +12,10 @@
 # Layout: ~/.cache/photocraft-dl/{orig,deb/build,log}. The deb ends up in deb/build/. Add it with
 #   sgl-reprepro includedeb resolute-testing ~/.cache/photocraft-dl/deb/build/storytold-photocraft*_<version>-*.deb
 set -euo pipefail
+# -h/--help: the comment at the top of this file, before anything else is read or done.
+for a in "$@"; do
+    case "$a" in -h|--help) sed -n '2,/^set -e/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+done
 
 here=$(cd "$(dirname "$0")" && pwd)
 # --no-clean (build only): keep the work tree of the last build (the unpacked source and target/), so that cargo
@@ -210,7 +214,7 @@ build)
     echo "debs are in $bd"
     ;;
 *)
-    echo "usage: $0 fetch|build [version]" >&2
+    echo "usage: $0 fetch|build [version] [--no-clean]" >&2
     exit 2
     ;;
 esac
