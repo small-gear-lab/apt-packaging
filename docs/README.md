@@ -16,7 +16,7 @@ To reproduce the setup elsewhere, see `../system/README.md` (the files that live
 | Where | What |
 |---|---|
 | `/etc/apt/sources.list.d/small-gear-lab.sources` | `file:` URI, `Suites: resolute resolute-testing`, `Signed-By` = the public key above |
-| `/etc/apt/preferences.d/small-gear-lab` | lowers the ESM pin (510 -> 500) for the kitty packages only, so that they compete on version |
+| `/etc/apt/preferences.d/small-gear-lab` | lowers the ESM pin (510 -> 500) for the kitty packages only, so that they compete on version; sets 700 (= apt.llvm.org) for the LLVM meta packages |
 | `~/.local/bin/sgl-reprepro` | runs reprepro with the signing passphrase supplied from a password manager |
 | `~/.local/bin/pinentry-secret-tool` | pinentry for rbw: answers the master password from the desktop keyring |
 | `~/.gnupg/gpg-agent.conf` | `allow-preset-passphrase` |
@@ -103,3 +103,18 @@ packaged entry. Remove it to get the second icon back.
 
 (`/usr/share/applications/kitty.desktop.bak` from 2024 is a stray backup, owned by no package and
 ignored by launchers.)
+
+## LLVM meta packages (clang, llvm, lld, lldb, ...)
+
+apt.llvm.org's unversioned names (`clang` `clang-format` `libclang-dev` `llvm` `llvm-dev` `llvm-runtime`
+`lld` `lldb`) are its `llvm-defaults` meta package, which still points at 23 while `clang-24` already
+exists. Our replacements of the same names depend on the `-24` packages and carry the same symlinks.
+
+- Built by `packaging/llvm-defaults/build.sh [major] [number]`; `links.tsv` is the manifest of symlinks
+  (taken from the official 23 packages, `llvm-sim` removed because 24 no longer has it).
+- Version `1:<major>.0-0~smallgearlab<N>`: above the official `1:23.0-71`, below any official `1:24.0-<rev>`,
+  so the official one takes over once it reaches 24.
+- Registered in **`resolute-testing`** (the content follows apt.llvm.org's development branch, so it is
+  opt-in in spirit). The pin in `/etc/apt/preferences.d/small-gear-lab` (`Pin-Priority: 700`, the same as
+  apt.llvm.org) is what lets them be chosen by `apt upgrade`; the two then compete on version only.
+- Moving to 25 later: `build.sh 25 1`, include to `resolute-testing`.
