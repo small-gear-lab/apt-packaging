@@ -1,0 +1,32 @@
+From 4deb5fa3fa12a736fee912559a59970152d37d48 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 21:50:44 +0900
+Subject: [PATCH] Make the window's own GL context current before releasing its
+ Skia resources
+
+Skia frees the GPU resources of a closing window with glDelete* calls, which act on the
+current context. If another window drew last, they deleted that window's buffers and
+shaders by the same object names, and its next draw crashed in the driver (a memcpy from
+NULL). Closing a window that did not have the focus crashed the whole process.
+---
+ src/renderer/opengl.rs | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/renderer/opengl.rs b/src/renderer/opengl.rs
+index 97d2116..a2cb613 100644
+--- a/src/renderer/opengl.rs
++++ b/src/renderer/opengl.rs
+@@ -249,6 +249,10 @@ impl SkiaRenderer for OpenGLSkiaRenderer {
+ 
+ impl Drop for OpenGLSkiaRenderer {
+     fn drop(&mut self) {
++        // Skia frees the GPU resources with glDelete* calls, which act on the current context. Make this
++        // window's own context current first: otherwise they hit whichever window drew last, deleting that
++        // window's buffers and shaders by the same object names, and its next draw crashes in the driver.
++        self.make_current();
+         let last = LIVE_RENDERERS.fetch_sub(1, Ordering::SeqCst) == 1;
+         match self.window_surface.display() {
+             #[cfg(not(target_os = "macos"))]
+-- 
+2.56.0
+
