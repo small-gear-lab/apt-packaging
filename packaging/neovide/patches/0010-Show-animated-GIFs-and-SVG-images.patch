@@ -1,0 +1,307 @@
+From 3efbee12ae8c572ed492ed41372ec99754e4e5c7 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 18:12:49 +0900
+Subject: [PATCH] Show animated GIFs and SVG images
+
+GIFs keep all their frames (up to 512 MB) with their delays; the frame to
+draw follows the time, and the renderer reports that it is animating so the
+next frame is drawn. paused and frame stop the animation at a frame.
+SVG files are rasterized with resvg (longer side 4096 px, system fonts).
+---
+ Cargo.toml                    |   1 +
+ src/renderer/image_overlay.rs | 173 ++++++++++++++++++++++++++++------
+ src/renderer/mod.rs           |   2 +
+ 3 files changed, 149 insertions(+), 27 deletions(-)
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 3c5c51d..cc08b10 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -58,6 +58,7 @@ glamour = { version = "0.18.0", features = ["serde"] }
+ glutin = "0.32.3"
+ glutin-winit = "0.5.0"
+ image = { version = "0.25.5", default-features = false, features = ["ico", "png", "jpeg", "webp", "gif", "bmp"] }
++resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts", "raster-images", "svgz"] }
+ indoc = "2.0.5"
+ itertools = "0.14.0"
+ log = "0.4.22"
+diff --git a/src/renderer/image_overlay.rs b/src/renderer/image_overlay.rs
+index 9981e17..f5471d9 100644
+--- a/src/renderer/image_overlay.rs
++++ b/src/renderer/image_overlay.rs
+@@ -6,7 +6,7 @@
+ //! and below the floating windows.
+ //!
+ //! Options (all but `path` are optional):
+-//! - `path`: the image file (PNG, JPEG, WebP, GIF, BMP, ICO)
++//! - `path`: the image file (PNG, JPEG, WebP, GIF (animated), BMP, ICO, SVG)
+ //! - `path2`: a second image, for the modes below
+ //! - `mode`: `single` (default), `difference`, `blend` or `swipe`
+ //! - `zoom`: the scale relative to the size that fits the image into the window (default 1.0)
+@@ -15,11 +15,14 @@
+ //! - `opacity`: how much of `path2` is shown in `blend`
+ //! - `split`: the position of the divider in `swipe`, 0..1 from the left of the window
+ //! - `gain`: how much the differences are amplified in `difference`
++//! - `paused`, `frame`: stop an animated image (GIF) at the frame number `frame` (counted from 0)
+ //! - `background`: `checker` (default), `dark` or `light`
+ 
+ use std::collections::HashMap;
+ use std::path::Path;
+ use std::path::PathBuf;
++use std::time::Duration;
++use std::time::Instant;
+ use std::time::SystemTime;
+ 
+ use log::warn;
+@@ -46,6 +49,10 @@ use crate::units::to_skia_rect;
+ 
+ /// Larger images are scaled down to this size when they are decoded, to stay within the texture limits.
+ const MAX_SIDE: u32 = 8192;
++/// The decoded frames of an animation may take this many bytes at most.
++const MAX_ANIMATION_BYTES: usize = 512 * 1024 * 1024;
++/// The longer side of a rasterized SVG, in pixels.
++const SVG_SIDE: f32 = 4096.0;
+ 
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+ pub enum ImageMode {
+@@ -73,6 +80,8 @@ pub struct ImageSpec {
+     pub opacity: f32,
+     pub split: f32,
+     pub gain: f32,
++    pub paused: bool,
++    pub frame: usize,
+     pub background: ImageBackground,
+ }
+ 
+@@ -92,6 +101,8 @@ impl ImageSpec {
+             opacity: 0.5,
+             split: 0.5,
+             gain: 4.0,
++            paused: false,
++            frame: 0,
+             background: ImageBackground::Checker,
+         };
+         let number = |v: &Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)).map(|f| f as f32);
+@@ -113,6 +124,8 @@ impl ImageSpec {
+                 }
+                 ("zoom", v) => spec.zoom = number(v)?.clamp(0.01, 100.0),
+                 ("actual", v) => spec.actual = v.as_bool()?,
++                ("paused", v) => spec.paused = v.as_bool()?,
++                ("frame", v) => spec.frame = v.as_u64()? as usize,
+                 ("x", v) => spec.offset.0 = number(v)?,
+                 ("y", v) => spec.offset.1 = number(v)?,
+                 ("opacity", v) => spec.opacity = number(v)?.clamp(0.0, 1.0),
+@@ -132,9 +145,47 @@ impl ImageSpec {
+     }
+ }
+ 
++/// One frame of an image. A still image has a single frame.
++struct Frame {
++    image: Image,
++    delay: Duration,
++}
++
+ struct Cached {
+     modified: Option<SystemTime>,
+-    image: Option<Image>,
++    frames: Vec<Frame>,
++    /// When the animation started (the frame to show follows from the time since then)
++    started: Instant,
++}
++
++impl Cached {
++    fn animated(&self) -> bool { self.frames.len() > 1 }
++
++    fn total_duration(&self) -> Duration { self.frames.iter().map(|f| f.delay).sum() }
++
++    /// The frame to show: `paused` stops at `frame`, otherwise it follows the time.
++    fn current(&self, paused: bool, frame: usize) -> Option<&Image> {
++        let frames = &self.frames;
++        if frames.is_empty() {
++            return None;
++        }
++        if !self.animated() {
++            return Some(&frames[0].image);
++        }
++        if paused {
++            return Some(&frames[frame % frames.len()].image);
++        }
++        let total = self.total_duration().as_millis().max(1);
++        let mut at = self.started.elapsed().as_millis() % total;
++        for f in frames {
++            let delay = f.delay.as_millis();
++            if at < delay {
++                return Some(&f.image);
++            }
++            at -= delay;
++        }
++        Some(&frames[0].image)
++    }
+ }
+ 
+ /// The images of one Neovide window, by the handle of the Neovim window they are shown in.
+@@ -146,29 +197,85 @@ pub struct ImageOverlays {
+ 
+ fn modified_time(path: &Path) -> Option<SystemTime> { std::fs::metadata(path).and_then(|m| m.modified()).ok() }
+ 
+-fn decode(path: &Path) -> Option<Image> {
+-    let mut decoded = match image::open(path) {
+-        Ok(image) => image,
+-        Err(error) => {
+-            warn!("Could not decode the image {}: {error}", path.display());
+-            return None;
+-        }
+-    };
+-    let (width, height) = (decoded.width(), decoded.height());
+-    if width.max(height) > MAX_SIDE {
++/// A Skia image (with mipmaps) from RGBA pixels.
++fn skia_image(rgba: &[u8], width: u32, height: u32, alpha: AlphaType) -> Option<Image> {
++    let info =
++        ImageInfo::new((width as i32, height as i32), ColorType::RGBA8888, alpha, ColorSpace::new_srgb());
++    let image = skia_safe::images::raster_from_data(&info, Data::new_copy(rgba), width as usize * 4)?;
++    // Mipmaps make a large image look good when it is scaled down to fit the window
++    Some(image.with_default_mipmaps().unwrap_or(image))
++}
++
++fn still_frame(image: image::DynamicImage) -> Option<Vec<Frame>> {
++    let mut decoded = image;
++    if decoded.width().max(decoded.height()) > MAX_SIDE {
+         decoded = decoded.resize(MAX_SIDE, MAX_SIDE, image::imageops::FilterType::Lanczos3);
+     }
+     let rgba = decoded.to_rgba8();
+     let (width, height) = rgba.dimensions();
+-    let info = ImageInfo::new(
+-        (width as i32, height as i32),
+-        ColorType::RGBA8888,
+-        AlphaType::Unpremul,
+-        ColorSpace::new_srgb(),
+-    );
+-    let image = skia_safe::images::raster_from_data(&info, Data::new_copy(rgba.as_raw()), width as usize * 4)?;
+-    // Mipmaps make a large image look good when it is scaled down to fit the window
+-    Some(image.with_default_mipmaps().unwrap_or(image))
++    Some(vec![Frame { image: skia_image(rgba.as_raw(), width, height, AlphaType::Unpremul)?, delay: Duration::ZERO }])
++}
++
++/// All the frames of a GIF with their delays. Very long animations are cut, to bound the memory use.
++fn decode_gif(path: &Path) -> Option<Vec<Frame>> {
++    use image::AnimationDecoder;
++    let file = std::io::BufReader::new(std::fs::File::open(path).ok()?);
++    let decoder = image::codecs::gif::GifDecoder::new(file).ok()?;
++    let mut frames = Vec::new();
++    let mut bytes = 0usize;
++    for frame in decoder.into_frames() {
++        let frame = frame.ok()?;
++        let (numer, denom) = frame.delay().numer_denom_ms();
++        // Browsers treat a delay of 0 or 10 ms or less as 100 ms
++        let millis = if denom == 0 { 100 } else { (numer / denom).max(0) };
++        let delay = Duration::from_millis(if millis <= 10 { 100 } else { millis as u64 });
++        let buffer = frame.into_buffer();
++        let (width, height) = buffer.dimensions();
++        bytes += width as usize * height as usize * 4;
++        frames.push(Frame { image: skia_image(buffer.as_raw(), width, height, AlphaType::Unpremul)?, delay });
++        if bytes > MAX_ANIMATION_BYTES {
++            warn!("The animation {} is cut after {} frames", path.display(), frames.len());
++            break;
++        }
++    }
++    (!frames.is_empty()).then_some(frames)
++}
++
++/// Rasterize an SVG so that its longer side is `SVG_SIDE` pixels (a vector image has no pixel size).
++fn decode_svg(path: &Path) -> Option<Vec<Frame>> {
++    let data = std::fs::read(path).ok()?;
++    let mut options = resvg::usvg::Options::default();
++    options.fontdb_mut().load_system_fonts();
++    let tree = match resvg::usvg::Tree::from_data(&data, &options) {
++        Ok(tree) => tree,
++        Err(error) => {
++            warn!("Could not parse the SVG {}: {error}", path.display());
++            return None;
++        }
++    };
++    let size = tree.size();
++    let scale = SVG_SIDE / size.width().max(size.height()).max(1.0);
++    let (width, height) = ((size.width() * scale).ceil().max(1.0) as u32, (size.height() * scale).ceil().max(1.0) as u32);
++    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height)?;
++    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
++    // The pixels of a tiny-skia pixmap are premultiplied
++    Some(vec![Frame { image: skia_image(pixmap.data(), width, height, AlphaType::Premul)?, delay: Duration::ZERO }])
++}
++
++fn decode(path: &Path) -> Vec<Frame> {
++    let extension = path.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase()).unwrap_or_default();
++    let frames = match extension.as_str() {
++        "svg" | "svgz" => decode_svg(path),
++        "gif" => decode_gif(path),
++        _ => match image::open(path) {
++            Ok(image) => still_frame(image),
++            Err(error) => {
++                warn!("Could not decode the image {}: {error}", path.display());
++                None
++            }
++        },
++    };
++    frames.unwrap_or_default()
+ }
+ 
+ impl ImageOverlays {
+@@ -193,11 +300,11 @@ impl ImageOverlays {
+     /// Decode the image unless the cached one is of the same file version.
+     fn load(&mut self, path: &Path) {
+         let modified = modified_time(path);
+-        if self.cache.get(path).is_some_and(|c| c.modified == modified && c.image.is_some()) {
++        if self.cache.get(path).is_some_and(|c| c.modified == modified && !c.frames.is_empty()) {
+             return;
+         }
+-        let image = decode(path);
+-        self.cache.insert(path.to_path_buf(), Cached { modified, image });
++        let frames = decode(path);
++        self.cache.insert(path.to_path_buf(), Cached { modified, frames, started: Instant::now() });
+     }
+ 
+     /// Drop the decoded images that no window shows any more.
+@@ -207,7 +314,19 @@ impl ImageOverlays {
+         self.cache.retain(|path, _| used.contains(&path));
+     }
+ 
+-    fn image(&self, path: &Path) -> Option<&Image> { self.cache.get(path)?.image.as_ref() }
++    fn image(&self, path: &Path, spec: &ImageSpec) -> Option<&Image> {
++        self.cache.get(path)?.current(spec.paused, spec.frame)
++    }
++
++    /// Whether an image that is shown is an animation that runs (so the window has to be redrawn).
++    pub fn is_animating(&self) -> bool {
++        self.specs.values().any(|spec| {
++            !spec.paused
++                && std::iter::once(&spec.path)
++                    .chain(spec.path2.as_ref())
++                    .any(|p| self.cache.get(p).is_some_and(Cached::animated))
++        })
++    }
+ 
+     /// Draw the image of the window, if there is one. `region` is the pixel region of the window's grid.
+     pub fn draw(&self, canvas: &Canvas, window: u64, region: PixelRect<f32>) {
+@@ -217,8 +336,8 @@ impl ImageOverlays {
+         canvas.save();
+         canvas.clip_rect(to_skia_rect(&region), None, Some(false));
+         draw_background(canvas, &region, spec.background);
+-        if let Some(first) = self.image(&spec.path) {
+-            let second = spec.path2.as_deref().and_then(|p| self.image(p));
++        if let Some(first) = self.image(&spec.path, spec) {
++            let second = spec.path2.as_deref().and_then(|p| self.image(p, spec));
+             draw_images(canvas, &region, spec, first, second);
+         }
+         canvas.restore();
+diff --git a/src/renderer/mod.rs b/src/renderer/mod.rs
+index f48f3dc..ccd765d 100644
+--- a/src/renderer/mod.rs
++++ b/src/renderer/mod.rs
+@@ -544,6 +544,8 @@ impl Renderer {
+         let progress_bar_settings = self.settings.get::<ProgressBarSettings>();
+         self.progress_bar.animate(&progress_bar_settings, dt);
+         animating |= self.progress_bar.is_active();
++        // An animated image (GIF) needs the next frame
++        animating |= self.image_overlays.is_animating();
+ 
+         animating
+     }

@@ -28,6 +28,7 @@ Once a testing version is installed, `ButAutomaticUpgrades` lets `apt upgrade` f
 | 0007 | Terminate the shared EGL display only when the last window's renderer is dropped (closing one of several windows used to crash the whole process with a segfault in `memmove`) |
 | 0008 | Draw the git branch symbols U+F5D0..U+F5FB natively (lines, curves, joints, commit circles). The set was designed for vim-flog and is also drawn by kitty. The shapes are written from the layout of the symbols, not copied from any implementation |
 | 0009 | Draw images over the area of a Neovim window: `neovide.image_set` (window handle + options map) and `neovide.image_clear`. PNG, JPEG, WebP, GIF, BMP and ICO are decoded with the `image` crate (its codec features are enabled in `Cargo.toml`) and drawn with Skia, with mipmaps when shrinking. Modes for comparing two images: `single`, `difference` (`Difference` blend with a gain), `blend` and `swipe`. Each rendered window remembers its Neovim window handle |
+| 0010 | Animated GIFs (all frames with their delays, up to 512 MB; the renderer reports that it is animating; `paused` and `frame` stop at a frame) and SVG (rasterized with `resvg`, longer side 4096 px, system fonts; `resvg` is added to `Cargo.toml`) |
 
 `packaging/neovide/winit-patches/` patches winit 0.30.13, which the build copies from the cargo registry and points
 to through `[patch.crates-io]`:
