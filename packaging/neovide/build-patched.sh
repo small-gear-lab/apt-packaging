@@ -51,7 +51,7 @@ for p in "$here"/patches/*.patch; do
 done
 
 echo "== winit (patched copy)"
-cargo fetch --locked
+cargo fetch
 winit_version=0.30.13
 winit_src=$(ls -d "${CARGO_HOME:-$HOME/.cargo}"/registry/src/*/winit-$winit_version | sed -n 1p)
 [ -d "$winit_src" ] || { echo "winit-$winit_version is not in the cargo registry" >&2; exit 1; }
