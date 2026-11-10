@@ -1,0 +1,545 @@
+From a75010ce97eeb5a252d3a58eb1d4f2edc8b47559 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 18:02:51 +0900
+Subject: [PATCH] Draw images over the area of a Neovim window
+
+neovide.image_set takes the handle of a Neovim window and a map of options
+(path, path2, mode, zoom, actual, x, y, opacity, split, gain, background);
+neovide.image_clear removes the image. The image is decoded with the image
+crate (PNG, JPEG, WebP, GIF, BMP, ICO) and drawn with Skia into the pixel
+region of the window's grid, above the text and below floating windows.
+Modes: single, difference, blend and swipe, for comparing two images.
+Each rendered window remembers the handle of its Neovim window.
+---
+ Cargo.toml                      |   2 +-
+ src/bridge/handler.rs           |  12 ++
+ src/editor/window.rs            |   1 +
+ src/renderer/image_overlay.rs   | 329 ++++++++++++++++++++++++++++++++
+ src/renderer/mod.rs             |  15 +-
+ src/renderer/rendered_window.rs |   8 +
+ src/window/events.rs            |   4 +
+ src/window/wrapper/mod.rs       |  10 +
+ 8 files changed, 378 insertions(+), 3 deletions(-)
+ create mode 100644 src/renderer/image_overlay.rs
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 25ccc9a..3c5c51d 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -57,7 +57,7 @@ gl = "0.14.0"
+ glamour = { version = "0.18.0", features = ["serde"] }
+ glutin = "0.32.3"
+ glutin-winit = "0.5.0"
+-image = { version = "0.25.5", default-features = false, features = ["ico"] }
++image = { version = "0.25.5", default-features = false, features = ["ico", "png", "jpeg", "webp", "gif", "bmp"] }
+ indoc = "2.0.5"
+ itertools = "0.14.0"
+ log = "0.4.22"
+diff --git a/src/bridge/handler.rs b/src/bridge/handler.rs
+index c275fbb..ae12a76 100644
+--- a/src/bridge/handler.rs
++++ b/src/bridge/handler.rs
+@@ -395,6 +395,18 @@ impl Handler for NeovimHandler {
+                     let _ = self.proxy.lock().unwrap().send_event(payload);
+                 }
+             }
++            "neovide.image_set" => {
++                let window = arguments.first().and_then(|v| v.as_u64());
++                let spec = arguments.get(1).and_then(crate::renderer::image_overlay::ImageSpec::from_value);
++                if let (Some(window), Some(spec)) = (window, spec) {
++                    self.send_window_command(WindowCommand::ImageSet { window, spec });
++                }
++            }
++            "neovide.image_clear" => {
++                if let Some(window) = arguments.first().and_then(|v| v.as_u64()) {
++                    self.send_window_command(WindowCommand::ImageClear(window));
++                }
++            }
+             "neovide.focus_route" => {
+                 if let Some(route) = arguments.first().and_then(|v| v.as_u64()) {
+                     self.send_window_command(WindowCommand::FocusRoute(route));
+diff --git a/src/editor/window.rs b/src/editor/window.rs
+index c8fe769..9aca5eb 100644
+--- a/src/editor/window.rs
++++ b/src/editor/window.rs
+@@ -230,6 +230,7 @@ impl Window {
+ 
+     pub fn position_tiled(&mut self, batcher: &mut DrawCommandBatcher, layout: TiledWindowLayout) {
+         self.set_tiled_layout(layout);
++        self.send_command(batcher, WindowDrawCommand::NvimWindow(Some(layout.window)));
+         // The grid's contents and size are owned by grid_resize. Neovim can emit win_pos with a
+         // window size that the grid has not been reallocated to yet, e.g. a temporary `:split`
+         // followed by a UI flush from `:write` and then `:close`. Resizing to that size would drop
+diff --git a/src/renderer/image_overlay.rs b/src/renderer/image_overlay.rs
+new file mode 100644
+index 0000000..9981e17
+--- /dev/null
++++ b/src/renderer/image_overlay.rs
+@@ -0,0 +1,329 @@
++//! Images drawn over the area of a Neovim window.
++//!
++//! An editor asks for an image with the `neovide.image_set` notification (the Neovim window handle and
++//! a map of options) and removes it with `neovide.image_clear`. The image is decoded with the `image`
++//! crate and drawn with Skia into the pixel region of the window's grid, above the text of the window
++//! and below the floating windows.
++//!
++//! Options (all but `path` are optional):
++//! - `path`: the image file (PNG, JPEG, WebP, GIF, BMP, ICO)
++//! - `path2`: a second image, for the modes below
++//! - `mode`: `single` (default), `difference`, `blend` or `swipe`
++//! - `zoom`: the scale relative to the size that fits the image into the window (default 1.0)
++//! - `actual`: use the actual size (one image pixel per screen pixel) instead of the fitting size as the base
++//! - `x`, `y`: the offset of the image from the center of the window, in pixels
++//! - `opacity`: how much of `path2` is shown in `blend`
++//! - `split`: the position of the divider in `swipe`, 0..1 from the left of the window
++//! - `gain`: how much the differences are amplified in `difference`
++//! - `background`: `checker` (default), `dark` or `light`
++
++use std::collections::HashMap;
++use std::path::Path;
++use std::path::PathBuf;
++use std::time::SystemTime;
++
++use log::warn;
++use nvim_rs::Value;
++use skia_safe::AlphaType;
++use skia_safe::BlendMode;
++use skia_safe::Canvas;
++use skia_safe::Color;
++use skia_safe::ColorSpace;
++use skia_safe::ColorType;
++use skia_safe::Data;
++use skia_safe::FilterMode;
++use skia_safe::Image;
++use skia_safe::ImageInfo;
++use skia_safe::MipmapMode;
++use skia_safe::Paint;
++use skia_safe::PaintStyle;
++use skia_safe::Rect;
++use skia_safe::SamplingOptions;
++use skia_safe::canvas::SaveLayerRec;
++
++use crate::units::PixelRect;
++use crate::units::to_skia_rect;
++
++/// Larger images are scaled down to this size when they are decoded, to stay within the texture limits.
++const MAX_SIDE: u32 = 8192;
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum ImageMode {
++    Single,
++    Difference,
++    Blend,
++    Swipe,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum ImageBackground {
++    Dark,
++    Light,
++    Checker,
++}
++
++#[derive(Clone, Debug, PartialEq)]
++pub struct ImageSpec {
++    pub path: PathBuf,
++    pub path2: Option<PathBuf>,
++    pub mode: ImageMode,
++    pub zoom: f32,
++    pub actual: bool,
++    pub offset: (f32, f32),
++    pub opacity: f32,
++    pub split: f32,
++    pub gain: f32,
++    pub background: ImageBackground,
++}
++
++impl ImageSpec {
++    /// Parse the options map of `neovide.image_set`.
++    pub fn from_value(value: &Value) -> Option<Self> {
++        let Value::Map(entries) = value else {
++            return None;
++        };
++        let mut spec = ImageSpec {
++            path: PathBuf::new(),
++            path2: None,
++            mode: ImageMode::Single,
++            zoom: 1.0,
++            actual: false,
++            offset: (0.0, 0.0),
++            opacity: 0.5,
++            split: 0.5,
++            gain: 4.0,
++            background: ImageBackground::Checker,
++        };
++        let number = |v: &Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64)).map(|f| f as f32);
++        let mut have_path = false;
++        for (key, value) in entries {
++            match (key.as_str()?, value) {
++                ("path", v) => {
++                    spec.path = PathBuf::from(v.as_str()?);
++                    have_path = true;
++                }
++                ("path2", v) => spec.path2 = v.as_str().filter(|s| !s.is_empty()).map(PathBuf::from),
++                ("mode", v) => {
++                    spec.mode = match v.as_str()? {
++                        "difference" => ImageMode::Difference,
++                        "blend" => ImageMode::Blend,
++                        "swipe" => ImageMode::Swipe,
++                        _ => ImageMode::Single,
++                    }
++                }
++                ("zoom", v) => spec.zoom = number(v)?.clamp(0.01, 100.0),
++                ("actual", v) => spec.actual = v.as_bool()?,
++                ("x", v) => spec.offset.0 = number(v)?,
++                ("y", v) => spec.offset.1 = number(v)?,
++                ("opacity", v) => spec.opacity = number(v)?.clamp(0.0, 1.0),
++                ("split", v) => spec.split = number(v)?.clamp(0.0, 1.0),
++                ("gain", v) => spec.gain = number(v)?.clamp(1.0, 64.0),
++                ("background", v) => {
++                    spec.background = match v.as_str()? {
++                        "light" => ImageBackground::Light,
++                        "dark" => ImageBackground::Dark,
++                        _ => ImageBackground::Checker,
++                    }
++                }
++                _ => {}
++            }
++        }
++        have_path.then_some(spec)
++    }
++}
++
++struct Cached {
++    modified: Option<SystemTime>,
++    image: Option<Image>,
++}
++
++/// The images of one Neovide window, by the handle of the Neovim window they are shown in.
++#[derive(Default)]
++pub struct ImageOverlays {
++    specs: HashMap<u64, ImageSpec>,
++    cache: HashMap<PathBuf, Cached>,
++}
++
++fn modified_time(path: &Path) -> Option<SystemTime> { std::fs::metadata(path).and_then(|m| m.modified()).ok() }
++
++fn decode(path: &Path) -> Option<Image> {
++    let mut decoded = match image::open(path) {
++        Ok(image) => image,
++        Err(error) => {
++            warn!("Could not decode the image {}: {error}", path.display());
++            return None;
++        }
++    };
++    let (width, height) = (decoded.width(), decoded.height());
++    if width.max(height) > MAX_SIDE {
++        decoded = decoded.resize(MAX_SIDE, MAX_SIDE, image::imageops::FilterType::Lanczos3);
++    }
++    let rgba = decoded.to_rgba8();
++    let (width, height) = rgba.dimensions();
++    let info = ImageInfo::new(
++        (width as i32, height as i32),
++        ColorType::RGBA8888,
++        AlphaType::Unpremul,
++        ColorSpace::new_srgb(),
++    );
++    let image = skia_safe::images::raster_from_data(&info, Data::new_copy(rgba.as_raw()), width as usize * 4)?;
++    // Mipmaps make a large image look good when it is scaled down to fit the window
++    Some(image.with_default_mipmaps().unwrap_or(image))
++}
++
++impl ImageOverlays {
++    pub fn is_empty(&self) -> bool { self.specs.is_empty() }
++
++    pub fn has(&self, window: u64) -> bool { self.specs.contains_key(&window) }
++
++    pub fn clear(&mut self, window: u64) {
++        self.specs.remove(&window);
++        self.forget_unused();
++    }
++
++    pub fn set(&mut self, window: u64, spec: ImageSpec) {
++        self.load(&spec.path);
++        if let Some(path2) = &spec.path2 {
++            self.load(path2);
++        }
++        self.specs.insert(window, spec);
++        self.forget_unused();
++    }
++
++    /// Decode the image unless the cached one is of the same file version.
++    fn load(&mut self, path: &Path) {
++        let modified = modified_time(path);
++        if self.cache.get(path).is_some_and(|c| c.modified == modified && c.image.is_some()) {
++            return;
++        }
++        let image = decode(path);
++        self.cache.insert(path.to_path_buf(), Cached { modified, image });
++    }
++
++    /// Drop the decoded images that no window shows any more.
++    fn forget_unused(&mut self) {
++        let used: Vec<&PathBuf> =
++            self.specs.values().flat_map(|s| std::iter::once(&s.path).chain(s.path2.as_ref())).collect();
++        self.cache.retain(|path, _| used.contains(&path));
++    }
++
++    fn image(&self, path: &Path) -> Option<&Image> { self.cache.get(path)?.image.as_ref() }
++
++    /// Draw the image of the window, if there is one. `region` is the pixel region of the window's grid.
++    pub fn draw(&self, canvas: &Canvas, window: u64, region: PixelRect<f32>) {
++        let Some(spec) = self.specs.get(&window) else {
++            return;
++        };
++        canvas.save();
++        canvas.clip_rect(to_skia_rect(&region), None, Some(false));
++        draw_background(canvas, &region, spec.background);
++        if let Some(first) = self.image(&spec.path) {
++            let second = spec.path2.as_deref().and_then(|p| self.image(p));
++            draw_images(canvas, &region, spec, first, second);
++        }
++        canvas.restore();
++    }
++}
++
++fn draw_background(canvas: &Canvas, region: &PixelRect<f32>, background: ImageBackground) {
++    let mut paint = Paint::default();
++    paint.set_style(PaintStyle::Fill);
++    let rect = to_skia_rect(region);
++    match background {
++        ImageBackground::Dark => {
++            paint.set_color(Color::from_rgb(0x1e, 0x1f, 0x22));
++            canvas.draw_rect(rect, &paint);
++        }
++        ImageBackground::Light => {
++            paint.set_color(Color::from_rgb(0xf2, 0xf2, 0xf2));
++            canvas.draw_rect(rect, &paint);
++        }
++        ImageBackground::Checker => {
++            // A checkerboard shows which parts of an image are transparent
++            let tile = 16.0;
++            paint.set_color(Color::from_rgb(0x2b, 0x2d, 0x30));
++            canvas.draw_rect(rect, &paint);
++            paint.set_color(Color::from_rgb(0x39, 0x3b, 0x40));
++            let mut y = rect.top;
++            let mut row = 0;
++            while y < rect.bottom {
++                let mut x = rect.left + if row % 2 == 0 { 0.0 } else { tile };
++                while x < rect.right {
++                    canvas.draw_rect(Rect::from_xywh(x, y, tile, tile), &paint);
++                    x += tile * 2.0;
++                }
++                y += tile;
++                row += 1;
++            }
++        }
++    }
++}
++
++fn draw_images(canvas: &Canvas, region: &PixelRect<f32>, spec: &ImageSpec, first: &Image, second: Option<&Image>) {
++    let (image_width, image_height) = (first.width() as f32, first.height() as f32);
++    let window_width = region.max.x - region.min.x;
++    let window_height = region.max.y - region.min.y;
++    // Fit with a small margin, so the edge of the image is visible
++    let fit = ((window_width * 0.98) / image_width).min((window_height * 0.98) / image_height);
++    let scale = if spec.actual { 1.0 } else { fit } * spec.zoom;
++    let (width, height) = (image_width * scale, image_height * scale);
++    let center_x = (region.min.x + region.max.x) / 2.0 + spec.offset.0;
++    let center_y = (region.min.y + region.max.y) / 2.0 + spec.offset.1;
++    let dst = Rect::from_xywh(center_x - width / 2.0, center_y - height / 2.0, width, height);
++
++    // Large magnifications show the pixels as they are; everything else is smoothed (with mipmaps when shrinking)
++    let sampling = if scale >= 3.0 {
++        SamplingOptions::new(FilterMode::Nearest, MipmapMode::None)
++    } else {
++        SamplingOptions::new(FilterMode::Linear, MipmapMode::Linear)
++    };
++    let paint = Paint::default();
++    canvas.draw_image_rect_with_sampling_options(first, None, dst, sampling, &paint);
++
++    let Some(second) = second else {
++        return;
++    };
++    match spec.mode {
++        ImageMode::Single => {}
++        ImageMode::Blend => {
++            let mut paint = Paint::default();
++            paint.set_alpha_f(spec.opacity);
++            canvas.draw_image_rect_with_sampling_options(second, None, dst, sampling, &paint);
++        }
++        ImageMode::Swipe => {
++            // The second image is shown to the right of the divider
++            let divider = region.min.x + window_width * spec.split;
++            canvas.save();
++            canvas.clip_rect(Rect::new(divider, region.min.y, region.max.x, region.max.y), None, Some(false));
++            canvas.draw_image_rect_with_sampling_options(second, None, dst, sampling, &paint);
++            canvas.restore();
++            let mut line = Paint::default();
++            line.set_style(PaintStyle::Stroke);
++            line.set_stroke_width(2.0);
++            line.set_color(Color::from_rgb(0x35, 0x74, 0xf0));
++            canvas.draw_line((divider, region.min.y), (divider, region.max.y), &line);
++        }
++        ImageMode::Difference => {
++            // |first - second|: identical pixels are black. The gain makes small differences visible.
++            let gain = spec.gain;
++            let matrix = skia_safe::ColorMatrix::new(
++                gain, 0.0, 0.0, 0.0, 0.0, //
++                0.0, gain, 0.0, 0.0, 0.0, //
++                0.0, 0.0, gain, 0.0, 0.0, //
++                0.0, 0.0, 0.0, 1.0, 0.0,
++            );
++            let mut layer_paint = Paint::default();
++            layer_paint.set_color_filter(skia_safe::color_filters::matrix(&matrix, None));
++            canvas.save_layer(&SaveLayerRec::default().bounds(&dst).paint(&layer_paint));
++            // Black below, so transparent parts do not show the background through the difference
++            let mut black = Paint::default();
++            black.set_color(Color::BLACK);
++            canvas.draw_rect(dst, &black);
++            canvas.draw_image_rect_with_sampling_options(first, None, dst, sampling, &Paint::default());
++            let mut difference = Paint::default();
++            difference.set_blend_mode(BlendMode::Difference);
++            canvas.draw_image_rect_with_sampling_options(second, None, dst, sampling, &difference);
++            canvas.restore();
++        }
++    }
++}
+diff --git a/src/renderer/mod.rs b/src/renderer/mod.rs
+index 725e868..f48f3dc 100644
+--- a/src/renderer/mod.rs
++++ b/src/renderer/mod.rs
+@@ -6,6 +6,7 @@ pub mod grid_renderer;
+ pub mod opengl;
+ pub mod profiler;
+ pub mod progress_bar;
++pub mod image_overlay;
+ mod rendered_layer;
+ pub mod rendered_window;
+ mod vsync;
+@@ -205,6 +206,8 @@ pub struct Renderer {
+ 
+     pub rendered_windows: HashMap<u64, RenderedWindow>,
+     pub window_regions: Vec<WindowDrawDetails>,
++    /// Images shown over the area of Neovim windows (by the handle of the Neovim window)
++    pub image_overlays: image_overlay::ImageOverlays,
+     /// committed with this route grids, including before its OS window exists.
+     #[cfg(target_os = "macos")]
+     pub scrollbar_snapshot: Option<ScrollbarSnapshot>,
+@@ -253,6 +256,7 @@ impl Renderer {
+ 
+         Renderer {
+             rendered_windows,
++            image_overlays: image_overlay::ImageOverlays::default(),
+             #[cfg(target_os = "macos")]
+             scrollbar_snapshot: None,
+             cursor_renderer,
+@@ -378,23 +382,30 @@ impl Renderer {
+         };
+ 
+         let max_root_x = max_window_max_x(&root_windows, grid_scale);
++        let image_overlays = &self.image_overlays;
+         let root_window_regions = root_windows
+             .into_iter()
+             .map(|window| {
+                 let region = window.pixel_region(grid_scale);
+                 let rightmost_root_window = is_rightmost_window_edge(region.max.x, max_root_x);
++                let nvim_window = window.nvim_window;
+ 
+                 // The toggle gates expansion before drawing. Draw also
+                 // returns that region for mouse hit testing, so skipping
+                 // only the paint would leave an invisible hit area.
+-                window.draw(
++                let details = window.draw(
+                     root_canvas,
+                     default_background,
+                     grid_scale,
+                     Some(*content_region),
+                     rightmost_root_window,
+                     bottom_fill_y,
+-                )
++                );
++                // An image of this Neovim window goes over the text of the window, below floating windows
++                if let Some(handle) = nvim_window {
++                    image_overlays.draw(root_canvas, handle, region);
++                }
++                details
+             })
+             .collect_vec();
+ 
+diff --git a/src/renderer/rendered_window.rs b/src/renderer/rendered_window.rs
+index 644556d..b618e6c 100644
+--- a/src/renderer/rendered_window.rs
++++ b/src/renderer/rendered_window.rs
+@@ -54,6 +54,8 @@ pub struct ViewportMargins {
+ 
+ #[derive(Debug, Clone, PartialEq)]
+ pub enum WindowDrawCommand {
++    /// The handle of the Neovim window shown in this grid
++    NvimWindow(Option<u64>),
+     Position {
+         grid_position: (f64, f64),
+         grid_size: (u64, u64),
+@@ -142,6 +144,8 @@ impl CachedBackgroundRuns {
+ 
+ pub struct RenderedWindow {
+     pub id: u64,
++    /// The handle of the Neovim window shown in this grid (tiled windows only)
++    pub nvim_window: Option<u64>,
+     valid: bool,
+     pub hidden: bool,
+     pub anchor_info: Option<AnchorInfo>,
+@@ -182,6 +186,7 @@ impl RenderedWindow {
+         let grid_position = GridPos::ZERO;
+         RenderedWindow {
+             id,
++            nvim_window: None,
+             valid: false,
+             hidden: false,
+             anchor_info: None,
+@@ -769,6 +774,9 @@ impl RenderedWindow {
+ 
+     pub fn handle_window_draw_command(&mut self, draw_command: WindowDrawCommand) {
+         match draw_command {
++            WindowDrawCommand::NvimWindow(window) => {
++                self.nvim_window = window;
++            }
+             WindowDrawCommand::Position { grid_position, grid_size, anchor_info, window_type } => {
+                 tracy_zone!("position_cmd", 0);
+ 
+diff --git a/src/window/events.rs b/src/window/events.rs
+index e467aec..db22124 100644
+--- a/src/window/events.rs
++++ b/src/window/events.rs
+@@ -69,6 +69,10 @@ pub enum WindowCommand {
+     SetMouseEnabled(bool),
+     ListAvailableFonts,
+     FocusWindow,
++    /// Show an image over the Neovim window with this handle (see renderer::image_overlay)
++    ImageSet { window: u64, spec: crate::renderer::image_overlay::ImageSpec },
++    /// Remove the image of the Neovim window with this handle
++    ImageClear(u64),
+     /// Focus the next (1) or previous (-1) window, in the order the windows were created.
+     CycleWindow(i32),
+     /// Focus the window whose route has this id (the value of g:neovide_route_id in its Neovim).
+diff --git a/src/window/wrapper/mod.rs b/src/window/wrapper/mod.rs
+index 7bbc7f0..1318e1c 100644
+--- a/src/window/wrapper/mod.rs
++++ b/src/window/wrapper/mod.rs
+@@ -492,6 +492,16 @@ impl WinitWindowWrapper {
+                 }
+             }
+             WindowCommand::ListAvailableFonts => self.send_font_names(target_window_id),
++            WindowCommand::ImageSet { window, spec } => {
++                if let Some(route) = self.routes.get(&target_window_id) {
++                    route.window.renderer.borrow_mut().image_overlays.set(window, spec);
++                }
++            }
++            WindowCommand::ImageClear(window) => {
++                if let Some(route) = self.routes.get(&target_window_id) {
++                    route.window.renderer.borrow_mut().image_overlays.clear(window);
++                }
++            }
+             WindowCommand::CycleWindow(direction) => {
+                 self.cycle_window(target_window_id, direction);
+             }

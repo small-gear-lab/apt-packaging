@@ -27,6 +27,7 @@ Once a testing version is installed, `ButAutomaticUpgrades` lets `apt upgrade` f
 | 0006 | `neovide.open_window` takes extra arguments for the new Neovim (`--cmd`, `-c`) |
 | 0007 | Terminate the shared EGL display only when the last window's renderer is dropped (closing one of several windows used to crash the whole process with a segfault in `memmove`) |
 | 0008 | Draw the git branch symbols U+F5D0..U+F5FB natively (lines, curves, joints, commit circles). The set was designed for vim-flog and is also drawn by kitty. The shapes are written from the layout of the symbols, not copied from any implementation |
+| 0009 | Draw images over the area of a Neovim window: `neovide.image_set` (window handle + options map) and `neovide.image_clear`. PNG, JPEG, WebP, GIF, BMP and ICO are decoded with the `image` crate (its codec features are enabled in `Cargo.toml`) and drawn with Skia, with mipmaps when shrinking. Modes for comparing two images: `single`, `difference` (`Difference` blend with a gain), `blend` and `swipe`. Each rendered window remembers its Neovim window handle |
 
 `packaging/neovide/winit-patches/` patches winit 0.30.13, which the build copies from the cargo registry and points
 to through `[patch.crates-io]`:
@@ -39,7 +40,8 @@ to through `[patch.crates-io]`:
 
 - The Rust toolchain is the nightly pinned by the source's `rust-toolchain.toml` (rustup installs it on first use,
   about 700 MB under `~/.rustup`). Cargo downloads the crates and skia's prebuilt binaries during the build.
-- The build is not `--locked`: pointing winit at a path changes its entry in `Cargo.lock`. The versions stay as locked.
+- The build is not `--locked`: pointing winit at a path changes its entry in `Cargo.lock`, and patch 0009 enables more
+  codecs of the `image` crate (new crates come into `Cargo.lock`). The versions of the other crates stay as locked.
 - Run long builds as a background task with a waiter on the `rc=` line of the log, so the end is noticed.
 - Not sent upstream. A GitHub fork or a pull request needs the owner's permission and a look at Neovide's
   contribution policy first.
