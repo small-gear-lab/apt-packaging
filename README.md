@@ -6,7 +6,7 @@ not a general-purpose tool.
 
 | Where | What |
 |---|---|
-| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `mozc-build.md`) |
+| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `mozc-build.md`, `neovim-build.md`) |
 | `packaging/` | one directory per package: `build.sh` and the `debian/` tree it builds from |
 | `pubkeys/` | the public key that signs the repository |
 | `repos/small-gear-lab/conf/` | reprepro's configuration (the generated `db/`, `dists/` and `pool/` are not kept) |
@@ -26,6 +26,12 @@ Packages built here:
 - `mozc` 3.35.6354 with the UT dictionaries merged into the system dictionary (`mozc-server`, `mozc-data`,
   `mozc-utils-gui`, `fcitx5-mozc`, `fcitx-mozc-data`, `ibus-mozc`, `emacs-mozc`, `emacs-mozc-bin`), built with Bazel from
   the `debian/` of phoepsilonix/mozc-deb; no fcitx4 package. Ubuntu has 2.29 without UT dictionaries
+- `neovim` and `neovim-runtime` 0.12.6: Ubuntu's 0.11.6 packaging carried over to the newer upstream release, built
+  without the test suite and with the tree-sitter grammars that upstream pins (Ubuntu's `tree-sitter-*-src`
+  packages are older than what the 0.12 runtime queries expect)
+- `neovide` 0.17.2 and `tree-sitter-cli` 0.27.2: repacks of the official release binaries, checked against the sha256
+  digest GitHub reports for each asset. `tree-sitter-cli` has Ubuntu's package name with a newer version, because
+  nvim-treesitter needs 0.26.1 or later to build parsers
 
 Start with `docs/README.md`.
 
