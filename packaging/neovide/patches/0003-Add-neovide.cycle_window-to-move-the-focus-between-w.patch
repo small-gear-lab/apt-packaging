@@ -1,0 +1,92 @@
+From 19963f6059101729a3269bb3a2ade1fe19087fec Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 14:33:55 +0900
+Subject: [PATCH] Add neovide.cycle_window to move the focus between windows
+
+A notification that focuses the next or previous window in creation
+order, so an editor can switch windows without the window manager.
+---
+ src/bridge/handler.rs     |  8 ++++++++
+ src/window/events.rs      |  2 ++
+ src/window/wrapper/mod.rs | 29 +++++++++++++++++++++++++++++
+ 3 files changed, 39 insertions(+)
+
+diff --git a/src/bridge/handler.rs b/src/bridge/handler.rs
+index 16b0712..fe0063f 100644
+--- a/src/bridge/handler.rs
++++ b/src/bridge/handler.rs
+@@ -369,6 +369,14 @@ impl Handler for NeovimHandler {
+             "neovide.focus_window" => {
+                 self.send_window_command(WindowCommand::FocusWindow);
+             }
++            "neovide.cycle_window" => {
++                let direction = arguments.first().and_then(|v| v.as_i64()).unwrap_or(1);
++                self.send_window_command(WindowCommand::CycleWindow(if direction < 0 {
++                    -1
++                } else {
++                    1
++                }));
++            }
+             #[cfg(target_os = "macos")]
+             "neovide.document_state" => match parse_document_state_args(&arguments) {
+                 Some((path, modified)) => {
+diff --git a/src/window/events.rs b/src/window/events.rs
+index 44acd37..afea97d 100644
+--- a/src/window/events.rs
++++ b/src/window/events.rs
+@@ -69,6 +69,8 @@ pub enum WindowCommand {
+     SetMouseEnabled(bool),
+     ListAvailableFonts,
+     FocusWindow,
++    /// Focus the next (1) or previous (-1) window, in the order the windows were created.
++    CycleWindow(i32),
+     #[cfg(target_os = "macos")]
+     TouchpadPressure {
+         col: i64,
+diff --git a/src/window/wrapper/mod.rs b/src/window/wrapper/mod.rs
+index cb24232..236d237 100644
+--- a/src/window/wrapper/mod.rs
++++ b/src/window/wrapper/mod.rs
+@@ -492,6 +492,9 @@ impl WinitWindowWrapper {
+                 }
+             }
+             WindowCommand::ListAvailableFonts => self.send_font_names(target_window_id),
++            WindowCommand::CycleWindow(direction) => {
++                self.cycle_window(target_window_id, direction);
++            }
+             WindowCommand::FocusWindow => {
+                 if let Some(route) = &self.routes.get(&target_window_id) {
+                     let window = &route.window.winit_window;
+@@ -2120,6 +2123,32 @@ impl WinitWindowWrapper {
+         }
+     }
+ 
++    /// Focus the window after (direction > 0) or before (direction < 0) `from`, in creation order.
++    /// On Wayland the compositor decides whether the activation request moves the focus.
++    pub fn cycle_window(&self, from: WindowId, direction: i32) {
++        let mut ordered: Vec<(RouteId, WindowId)> =
++            self.routes.iter().map(|(window_id, route)| (route.route_id, *window_id)).collect();
++        ordered.sort();
++        let count = ordered.len();
++        if count < 2 {
++            return;
++        }
++        let Some(index) = ordered.iter().position(|(_, window_id)| *window_id == from) else {
++            return;
++        };
++        let next = if direction < 0 { (index + count - 1) % count } else { (index + 1) % count };
++        let Some(route) = self.routes.get(&ordered[next].1) else {
++            return;
++        };
++        let window = &route.window.winit_window;
++        match window.window_handle().map(|handle| handle.as_raw()) {
++            Ok(RawWindowHandle::Wayland(_)) => {
++                window.request_user_attention(Some(UserAttentionType::Informational));
++            }
++            _ => window.focus_window(),
++        }
++    }
++
+     pub fn get_focused_route(&self) -> Option<WindowId> {
+         if let Some(id) = self.routes.iter().find_map(|(key, val)| {
+             if (!val.window.winit_window.has_focus() && self.routes.len() == 1)

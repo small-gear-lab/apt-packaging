@@ -1,0 +1,445 @@
+From c6de1840c8569cdb5225063857bb830885257ca0 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 14:19:58 +0900
+Subject: [PATCH 1/2] Enable the handoff and multi-window file opening on Linux
+
+--reuse-instance, --new-window and --chdir were macOS-only. Build the
+handoff listener, the OpenFiles event and the new-window path on all unix
+targets, and add the Linux side of window creation and activation.
+---
+ src/bridge/mod.rs                             |  6 +--
+ src/bridge/ui_commands.rs                     | 22 ++++----
+ src/cmd_line.rs                               | 10 ++--
+ src/main.rs                                   | 12 ++---
+ src/utils/mod.rs                              |  8 +--
+ src/version.rs                                |  4 +-
+ src/window/application/macos/mod.rs           |  1 -
+ src/window/application/mod.rs                 |  6 ++-
+ .../application/{macos => }/open_files.rs     |  2 +-
+ src/window/events.rs                          |  2 +-
+ src/window/wrapper/linux.rs                   | 52 +++++++++++++++++++
+ src/window/wrapper/mod.rs                     |  6 +--
+ 12 files changed, 93 insertions(+), 38 deletions(-)
+ rename src/window/application/{macos => }/open_files.rs (98%)
+
+diff --git a/src/bridge/mod.rs b/src/bridge/mod.rs
+index 3105b20..eedfa25 100644
+--- a/src/bridge/mod.rs
++++ b/src/bridge/mod.rs
+@@ -58,9 +58,9 @@ pub use transition::TransitionFailure;
+ pub use ui_commands::ParallelCommand;
+ pub use ui_commands::SerialCommand;
+ pub use ui_commands::get_active_handler;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub use ui_commands::require_active_handler;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub use ui_commands::send_or_queue_file_drop;
+ pub use ui_commands::send_ui;
+ pub use ui_commands::set_active_route_handler;
+@@ -337,7 +337,7 @@ async fn create_neovim_session(
+         .await
+         .context("Could not attach ui to neovim process")?;
+ 
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     ui_commands::mark_file_drop_handler_ready();
+ 
+     info!("Neovim process attached");
+diff --git a/src/bridge/ui_commands.rs b/src/bridge/ui_commands.rs
+index 25aba69..c087646 100644
+--- a/src/bridge/ui_commands.rs
++++ b/src/bridge/ui_commands.rs
+@@ -7,9 +7,9 @@ use std::collections::HashMap;
+ use std::sync::Arc;
+ use std::sync::LazyLock;
+ use std::sync::Mutex;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use std::sync::atomic::AtomicBool;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use std::sync::atomic::Ordering;
+ 
+ use anyhow::Context;
+@@ -99,10 +99,10 @@ static HANDLER_REGISTRY: LazyLock<Mutex<HandlerRegistry<NeovimHandler>>> =
+ /// `send_or_queue_file_drop` queues it until the first attach has completed and
+ /// an active handler exists. The attach flag stays set after that, so it does
+ /// not verify a later attach.
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ type PendingFileDrop = (String, Option<bool>);
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ static PENDING_FILE_DROPS: LazyLock<Mutex<Vec<PendingFileDrop>>> =
+     LazyLock::new(|| Mutex::new(Vec::new()));
+ 
+@@ -110,19 +110,19 @@ static PENDING_FILE_DROPS: LazyLock<Mutex<Vec<PendingFileDrop>>> =
+ /// successful attach sets this flag and nothing resets it. It keeps cold
+ /// startup file opens from running before the initial UI attach completes, but
+ /// does not establish that the selected route has finished a later attach.
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ static FILE_DROP_HANDLER_READY: AtomicBool = AtomicBool::new(false);
+ 
+ pub fn get_active_handler() -> Option<NeovimHandler> {
+     HANDLER_REGISTRY.lock().unwrap().active().cloned()
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn require_active_handler() -> NeovimHandler {
+     get_active_handler().expect("NeovimHandler has not been initialized")
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn send_or_queue_file_drop(path: String, tabs: Option<bool>) {
+     if FILE_DROP_HANDLER_READY.load(Ordering::SeqCst)
+         && let Some(handler) = get_active_handler()
+@@ -134,7 +134,7 @@ pub fn send_or_queue_file_drop(path: String, tabs: Option<bool>) {
+     PENDING_FILE_DROPS.lock().unwrap().push((path, tabs));
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ fn flush_pending_file_drops(handler: &NeovimHandler) {
+     let pending = {
+         let mut pending = PENDING_FILE_DROPS.lock().unwrap();
+@@ -146,7 +146,7 @@ fn flush_pending_file_drops(handler: &NeovimHandler) {
+     }
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ fn flush_pending_file_drops_when_ready() {
+     if FILE_DROP_HANDLER_READY.load(Ordering::SeqCst)
+         && let Some(handler) = get_active_handler()
+@@ -155,7 +155,7 @@ fn flush_pending_file_drops_when_ready() {
+     }
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ /// Record a successful UI attachment and send queued file opens to the
+ /// currently selected route, if one is registered.
+ pub(crate) fn mark_file_drop_handler_ready() {
+@@ -831,7 +831,7 @@ pub fn start_ui_command_handler(
+ ) {
+     handler.update_current_neovim(nvim, can_support_ime_api);
+     register_route_handler(route_id, handler.clone());
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     flush_pending_file_drops_when_ready();
+     if handler.mark_ui_command_started() {
+         return;
+diff --git a/src/cmd_line.rs b/src/cmd_line.rs
+index a8b5b15..87a293e 100644
+--- a/src/cmd_line.rs
++++ b/src/cmd_line.rs
+@@ -4,14 +4,14 @@ use std::process::ExitStatus;
+ use anyhow::Context;
+ use anyhow::Result;
+ use clap::ArgAction;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use clap::CommandFactory;
+ use clap::Parser;
+ use clap::ValueEnum;
+ use clap::builder::FalseyValueParser;
+ use clap::builder::Styles;
+ use clap::builder::styling;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use clap::parser::ValueSource;
+ use winit::window::CursorIcon;
+ 
+@@ -64,12 +64,12 @@ pub struct CmdLineSettings {
+     pub server: Option<String>,
+ 
+     /// Open files in an existing Neovide app instance if one is already running
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     #[arg(long = "reuse-instance", action = ArgAction::SetTrue, default_value = "0", value_parser = FalseyValueParser::new())]
+     pub reuse_instance: bool,
+ 
+     /// Open files in a new window when reusing an existing Neovide instance
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     #[arg(long = "new-window", requires = "reuse_instance", action = ArgAction::SetTrue, default_value = "0", value_parser = FalseyValueParser::new())]
+     pub new_window: bool,
+ 
+@@ -369,7 +369,7 @@ pub fn handle_command_line_arguments(args: Vec<String>, settings: &Settings) ->
+     Ok(())
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn argv_chdir() -> Option<String> {
+     let matches = CmdLineSettings::command().try_get_matches_from(std::env::args_os()).ok()?;
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 23a4bf0..dfd4501 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -22,7 +22,7 @@ mod dimensions;
+ mod editor;
+ mod errors;
+ mod frame;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ mod ipc;
+ mod profiling;
+ mod renderer;
+@@ -87,7 +87,7 @@ use crate::frame::Frame;
+ use crate::settings::Config;
+ use crate::settings::Settings;
+ use crate::settings::load_last_window_settings;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use crate::utils::resolved_cwd;
+ 
+ const DEFAULT_BACKTRACES_FILE: &str = "neovide_backtraces.log";
+@@ -157,7 +157,7 @@ fn main() -> ExitCode {
+         clipboard_handle,
+     );
+ 
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     let _handoff_listener = match ipc::handoff::start_listener(event_loop.create_proxy()) {
+         Ok(listener) => Some(listener),
+         Err(error) => {
+@@ -185,7 +185,7 @@ fn preflight(settings: &Settings) -> Result<()> {
+         }
+     }
+ 
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     match maybe_handoff(settings) {
+         HandoffOutcome::Continue => {}
+         HandoffOutcome::Exit => std::process::exit(0),
+@@ -298,14 +298,14 @@ fn setup(
+     Ok(())
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ enum HandoffOutcome {
+     Continue,
+     Exit,
+     Error(String),
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ fn maybe_handoff(settings: &Settings) -> HandoffOutcome {
+     let cmdline_settings = settings.get::<CmdLineSettings>();
+     if !cmdline_settings.reuse_instance
+diff --git a/src/utils/mod.rs b/src/utils/mod.rs
+index 12e85a6..3e42e8c 100644
+--- a/src/utils/mod.rs
++++ b/src/utils/mod.rs
+@@ -2,9 +2,9 @@ mod ring_buffer;
+ #[cfg(test)]
+ mod test;
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use std::path::Path;
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ use std::path::PathBuf;
+ 
+ pub use ring_buffer::*;
+@@ -65,7 +65,7 @@ pub fn expand_tilde(path: &str) -> String {
+     home.to_string_lossy().into()
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn resolved_cwd(chdir: Option<&str>) -> Option<String> {
+     let current_dir = std::env::current_dir().ok();
+ 
+@@ -79,7 +79,7 @@ pub fn resolved_cwd(chdir: Option<&str>) -> Option<String> {
+     Some(cwd.to_string_lossy().into_owned())
+ }
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn resolve_relative_path(path: &str, cwd: Option<&Path>) -> String {
+     if path.starts_with('~') {
+         return expand_tilde(path);
+diff --git a/src/version.rs b/src/version.rs
+index 0269d5c..13f0f21 100644
+--- a/src/version.rs
++++ b/src/version.rs
+@@ -1,9 +1,9 @@
+ pub const BUILD_VERSION: &str = env!("NEOVIDE_BUILD_VERSION");
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(unix)]
+ pub fn release_channel() -> &'static str { release_channel_for_build_version(BUILD_VERSION) }
+ 
+-#[cfg(any(target_os = "macos", test))]
++#[cfg(any(unix, test))]
+ fn release_channel_for_build_version(build_version: &str) -> &'static str {
+     if build_version.starts_with("nightly-") { "nightly" } else { "stable" }
+ }
+diff --git a/src/window/application/macos/mod.rs b/src/window/application/macos/mod.rs
+index 92e1265..0443673 100644
+--- a/src/window/application/macos/mod.rs
++++ b/src/window/application/macos/mod.rs
+@@ -2,7 +2,6 @@ pub mod delegate;
+ mod hotkey;
+ pub mod icon;
+ mod menu;
+-mod open_files;
+ 
+ use std::cell::RefCell;
+ use std::sync::OnceLock;
+diff --git a/src/window/application/mod.rs b/src/window/application/mod.rs
+index d96e196..c5a6686 100644
+--- a/src/window/application/mod.rs
++++ b/src/window/application/mod.rs
+@@ -47,6 +47,10 @@ use crate::window::UserEvent;
+ #[cfg_attr(target_os = "windows", path = "windows.rs")]
+ pub mod platform;
+ 
++// 新しいウィンドウ（独立した nvim を持つルート）を、引き継ぎの依頼で開く。macOS 専用だったものを unix 全般に広げた
++#[cfg(unix)]
++mod open_files;
++
+ /// Present an attachment failure after the old route has been removed. A
+ /// previous address is a recovery hint only. The old server may have exited or
+ /// stopped listening by the time the error window appears.
+@@ -717,7 +721,7 @@ impl ApplicationHandler<EventPayload> for Application {
+         let EventPayload { payload, target } = event;
+         match payload {
+             UserEvent::ConfigsChanged(config) => self.handle_config_changed(target, *config),
+-            #[cfg(target_os = "macos")]
++            #[cfg(unix)]
+             open_files @ UserEvent::OpenFiles { .. } => {
+                 self.handle_open_files(event_loop, open_files);
+             }
+diff --git a/src/window/application/macos/open_files.rs b/src/window/application/open_files.rs
+similarity index 98%
+rename from src/window/application/macos/open_files.rs
+rename to src/window/application/open_files.rs
+index d5a173e..a9dac81 100644
+--- a/src/window/application/macos/open_files.rs
++++ b/src/window/application/open_files.rs
+@@ -2,7 +2,7 @@ use std::path::Path;
+ 
+ use winit::event_loop::ActiveEventLoop;
+ 
+-use super::super::Application;
++use super::Application;
+ use crate::bridge::OpenArgs;
+ use crate::bridge::send_or_queue_file_drop;
+ use crate::bridge::set_active_route_handler;
+diff --git a/src/window/events.rs b/src/window/events.rs
+index 631f7b7..44acd37 100644
+--- a/src/window/events.rs
++++ b/src/window/events.rs
+@@ -107,7 +107,7 @@ pub enum MacShortcutCommand {
+ #[derive(Clone, Debug, PartialEq)]
+ pub enum UserEvent {
+     DrawCommandBatch(Vec<DrawCommand>),
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     OpenFiles {
+         files: Vec<String>,
+         cwd: Option<String>,
+diff --git a/src/window/wrapper/linux.rs b/src/window/wrapper/linux.rs
+index 886f7de..4bc03ec 100644
+--- a/src/window/wrapper/linux.rs
++++ b/src/window/wrapper/linux.rs
+@@ -21,3 +21,55 @@ impl WinitWindowWrapper {
+         ShortcutHandling::default()
+     }
+ }
++
++// ---- 複数ウィンドウ（引き継ぎの依頼で新しいウィンドウを開く）に必要な、macOS 側と同じ働きの部分 ----
++
++use crate::bridge::OpenArgs;
++use crate::cmd_line::CmdLineSettings;
++
++/// 新しいウィンドウの nvim を起動するときの設定（Neovim の実行ファイルと引数）
++#[derive(Default)]
++pub struct RouteLaunchConfig {
++    neovim_bin: Option<String>,
++    neovim_args: Option<Vec<String>>,
++}
++
++impl RouteLaunchConfig {
++    fn from_open_args(args: &OpenArgs) -> Self {
++        Self { neovim_bin: args.neovim_bin.clone(), neovim_args: args.neovim_args.clone() }
++    }
++
++    fn from_cmdline(cmdline: CmdLineSettings) -> Self {
++        Self {
++            neovim_bin: cmdline.neovim_bin,
++            neovim_args: (!cmdline.neovim_args.is_empty()).then_some(cmdline.neovim_args),
++        }
++    }
++}
++
++impl WinitWindowWrapper {
++    pub fn route_launch_config_for_window_creation(
++        &self,
++        args: Option<&OpenArgs>,
++        creating_initial_window: bool,
++    ) -> RouteLaunchConfig {
++        if let Some(args) = args {
++            return RouteLaunchConfig::from_open_args(args);
++        }
++
++        if !creating_initial_window {
++            return RouteLaunchConfig::default();
++        }
++
++        RouteLaunchConfig::from_cmdline(self.settings.get::<CmdLineSettings>())
++    }
++
++    /// 指定したウィンドウを前面に出して、フォーカスを移す。Wayland では、コンポジタが許さないことがある
++    pub fn activate_and_focus_window(&self, window_id: WindowId) -> bool {
++        let Some(route) = self.routes.get(&window_id) else {
++            return false;
++        };
++        route.window.winit_window.focus_window();
++        true
++    }
++}
+diff --git a/src/window/wrapper/mod.rs b/src/window/wrapper/mod.rs
+index a5c8508..cb24232 100644
+--- a/src/window/wrapper/mod.rs
++++ b/src/window/wrapper/mod.rs
+@@ -199,7 +199,7 @@ pub struct Route {
+     cwd: Option<PathBuf>,
+     pub pending_initial_window_size: Option<WindowSize>,
+     state: RouteState,
+-    #[cfg(target_os = "macos")]
++    #[cfg(unix)]
+     launch_config: platform::RouteLaunchConfig,
+ }
+ 
+@@ -1238,7 +1238,7 @@ impl WinitWindowWrapper {
+         // Capture per-route launch config before args is consumed into OpenMode.
+         // For the initial window (args is None, uses OpenMode::Startup), pull from
+         // CmdLineSettings so "New Window" can clone the initial invocation's config.
+-        #[cfg(target_os = "macos")]
++        #[cfg(unix)]
+         let route_launch_config =
+             self.route_launch_config_for_window_creation(args.as_ref(), creating_initial_window);
+ 
+@@ -1459,7 +1459,7 @@ impl WinitWindowWrapper {
+             cwd: route_cwd,
+             pending_initial_window_size,
+             state,
+-            #[cfg(target_os = "macos")]
++            #[cfg(unix)]
+             launch_config: route_launch_config,
+         };
+         self.routes.insert(window.id(), route);

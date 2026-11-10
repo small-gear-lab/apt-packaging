@@ -1,0 +1,59 @@
+From c887b7a84a355227cbaff84c4ef80f7b1c33ea72 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 14:19:58 +0900
+Subject: [PATCH 2/2] Make the OpenGL context current before drawing each
+ window
+
+The context was made current only when the window was created, so with
+several windows every window but the last one drew into the wrong
+context (no redraw, no resize). Make it current before canvas access,
+flush, swap and resize.
+---
+ src/renderer/opengl.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/renderer/opengl.rs b/src/renderer/opengl.rs
+index f8b4532..aa06273 100644
+--- a/src/renderer/opengl.rs
++++ b/src/renderer/opengl.rs
+@@ -171,10 +171,17 @@ impl OpenGLSkiaRenderer {
+     }
+ }
+ 
++impl OpenGLSkiaRenderer {
++    // ウィンドウが複数あるときは、描画の直前にこのウィンドウのコンテキストをカレントにする必要がある
++    // （作成時にだけカレントにすると、最後に作ったウィンドウ以外は別のコンテキストに描いてしまう）
++    fn make_current(&self) { let _ = self.context.make_current(&self.window_surface); }
++}
++
+ impl SkiaRenderer for OpenGLSkiaRenderer {
+     fn window(&self) -> Rc<Window> { Rc::clone(self.window.as_ref().unwrap()) }
+ 
+     fn flush(&mut self) -> Result<(), FlushError> {
++        self.make_current();
+         {
+             tracy_gpu_zone!("skia flush");
+             self.gr_context.flush_and_submit().map(|_| ())
+@@ -182,6 +189,7 @@ impl SkiaRenderer for OpenGLSkiaRenderer {
+     }
+ 
+     fn swap_buffers(&mut self) {
++        self.make_current();
+         {
+             tracy_gpu_zone!("swap buffers");
+             self.window().pre_present_notify();
+@@ -189,9 +197,13 @@ impl SkiaRenderer for OpenGLSkiaRenderer {
+         }
+     }
+ 
+-    fn canvas(&mut self) -> &Canvas { self.skia_surface.canvas() }
++    fn canvas(&mut self) -> &Canvas {
++        self.make_current();
++        self.skia_surface.canvas()
++    }
+ 
+     fn resize(&mut self) {
++        self.make_current();
+         self.skia_surface = create_surface(
+             &self.config,
+             &self.window().inner_size(),
