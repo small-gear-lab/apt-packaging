@@ -1,0 +1,140 @@
+From 7e5f1f57332c9dceb81fc2727e62269fe36ce8b9 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 18:20:27 +0900
+Subject: [PATCH] Remove the unused code of the Linux port
+
+The launch config of a route is read only by the macOS code that opens a new
+window like the focused one, and require_active_handler only by the macOS
+menu: they are macOS only again, and the Linux RouteLaunchConfig is gone.
+Also remove two helper methods of ImageOverlays that nothing calls.
+---
+ src/bridge/mod.rs             |  2 +-
+ src/bridge/ui_commands.rs     |  2 +-
+ src/renderer/image_overlay.rs |  4 ----
+ src/window/wrapper/linux.rs   | 39 -----------------------------------
+ src/window/wrapper/mod.rs     |  6 +++---
+ 5 files changed, 5 insertions(+), 48 deletions(-)
+
+diff --git a/src/bridge/mod.rs b/src/bridge/mod.rs
+index aeb3a6e..a6cc57a 100644
+--- a/src/bridge/mod.rs
++++ b/src/bridge/mod.rs
+@@ -58,7 +58,7 @@ pub use transition::TransitionFailure;
+ pub use ui_commands::ParallelCommand;
+ pub use ui_commands::SerialCommand;
+ pub use ui_commands::get_active_handler;
+-#[cfg(unix)]
++#[cfg(target_os = "macos")]
+ pub use ui_commands::require_active_handler;
+ #[cfg(unix)]
+ pub use ui_commands::send_or_queue_file_drop;
+diff --git a/src/bridge/ui_commands.rs b/src/bridge/ui_commands.rs
+index c087646..b693f5c 100644
+--- a/src/bridge/ui_commands.rs
++++ b/src/bridge/ui_commands.rs
+@@ -117,7 +117,7 @@ pub fn get_active_handler() -> Option<NeovimHandler> {
+     HANDLER_REGISTRY.lock().unwrap().active().cloned()
+ }
+ 
+-#[cfg(unix)]
++#[cfg(target_os = "macos")]
+ pub fn require_active_handler() -> NeovimHandler {
+     get_active_handler().expect("NeovimHandler has not been initialized")
+ }
+diff --git a/src/renderer/image_overlay.rs b/src/renderer/image_overlay.rs
+index f5471d9..e9e87d7 100644
+--- a/src/renderer/image_overlay.rs
++++ b/src/renderer/image_overlay.rs
+@@ -279,10 +279,6 @@ fn decode(path: &Path) -> Vec<Frame> {
+ }
+ 
+ impl ImageOverlays {
+-    pub fn is_empty(&self) -> bool { self.specs.is_empty() }
+-
+-    pub fn has(&self, window: u64) -> bool { self.specs.contains_key(&window) }
+-
+     pub fn clear(&mut self, window: u64) {
+         self.specs.remove(&window);
+         self.forget_unused();
+diff --git a/src/window/wrapper/linux.rs b/src/window/wrapper/linux.rs
+index 4bc03ec..95da672 100644
+--- a/src/window/wrapper/linux.rs
++++ b/src/window/wrapper/linux.rs
+@@ -24,46 +24,7 @@ impl WinitWindowWrapper {
+ 
+ // ---- 複数ウィンドウ（引き継ぎの依頼で新しいウィンドウを開く）に必要な、macOS 側と同じ働きの部分 ----
+ 
+-use crate::bridge::OpenArgs;
+-use crate::cmd_line::CmdLineSettings;
+-
+-/// 新しいウィンドウの nvim を起動するときの設定（Neovim の実行ファイルと引数）
+-#[derive(Default)]
+-pub struct RouteLaunchConfig {
+-    neovim_bin: Option<String>,
+-    neovim_args: Option<Vec<String>>,
+-}
+-
+-impl RouteLaunchConfig {
+-    fn from_open_args(args: &OpenArgs) -> Self {
+-        Self { neovim_bin: args.neovim_bin.clone(), neovim_args: args.neovim_args.clone() }
+-    }
+-
+-    fn from_cmdline(cmdline: CmdLineSettings) -> Self {
+-        Self {
+-            neovim_bin: cmdline.neovim_bin,
+-            neovim_args: (!cmdline.neovim_args.is_empty()).then_some(cmdline.neovim_args),
+-        }
+-    }
+-}
+-
+ impl WinitWindowWrapper {
+-    pub fn route_launch_config_for_window_creation(
+-        &self,
+-        args: Option<&OpenArgs>,
+-        creating_initial_window: bool,
+-    ) -> RouteLaunchConfig {
+-        if let Some(args) = args {
+-            return RouteLaunchConfig::from_open_args(args);
+-        }
+-
+-        if !creating_initial_window {
+-            return RouteLaunchConfig::default();
+-        }
+-
+-        RouteLaunchConfig::from_cmdline(self.settings.get::<CmdLineSettings>())
+-    }
+-
+     /// 指定したウィンドウを前面に出して、フォーカスを移す。Wayland では、コンポジタが許さないことがある
+     pub fn activate_and_focus_window(&self, window_id: WindowId) -> bool {
+         let Some(route) = self.routes.get(&window_id) else {
+diff --git a/src/window/wrapper/mod.rs b/src/window/wrapper/mod.rs
+index 1318e1c..7bebdce 100644
+--- a/src/window/wrapper/mod.rs
++++ b/src/window/wrapper/mod.rs
+@@ -199,7 +199,7 @@ pub struct Route {
+     cwd: Option<PathBuf>,
+     pub pending_initial_window_size: Option<WindowSize>,
+     state: RouteState,
+-    #[cfg(unix)]
++    #[cfg(target_os = "macos")]
+     launch_config: platform::RouteLaunchConfig,
+ }
+ 
+@@ -1254,7 +1254,7 @@ impl WinitWindowWrapper {
+         // Capture per-route launch config before args is consumed into OpenMode.
+         // For the initial window (args is None, uses OpenMode::Startup), pull from
+         // CmdLineSettings so "New Window" can clone the initial invocation's config.
+-        #[cfg(unix)]
++        #[cfg(target_os = "macos")]
+         let route_launch_config =
+             self.route_launch_config_for_window_creation(args.as_ref(), creating_initial_window);
+ 
+@@ -1475,7 +1475,7 @@ impl WinitWindowWrapper {
+             cwd: route_cwd,
+             pending_initial_window_size,
+             state,
+-            #[cfg(unix)]
++            #[cfg(target_os = "macos")]
+             launch_config: route_launch_config,
+         };
+         self.routes.insert(window.id(), route);
