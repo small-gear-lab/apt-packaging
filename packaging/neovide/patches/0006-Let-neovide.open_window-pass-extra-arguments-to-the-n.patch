@@ -1,0 +1,48 @@
+From 58f4a81a5ede548e1a2113c4ece4228dc87ae646 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:37:21 +0900
+Subject: [PATCH] Let neovide.open_window pass extra arguments to the new
+ Neovim
+
+An optional second argument is a list of arguments for the new Neovim
+(for example --cmd and -c), so an editor can open a window that starts in a
+given state.
+---
+ src/bridge/handler.rs | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/src/bridge/handler.rs b/src/bridge/handler.rs
+index f87ad35..c275fbb 100644
+--- a/src/bridge/handler.rs
++++ b/src/bridge/handler.rs
+@@ -369,10 +369,20 @@ impl Handler for NeovimHandler {
+             "neovide.focus_window" => {
+                 self.send_window_command(WindowCommand::FocusWindow);
+             }
+-            // Open a new window (its own Neovim) whose working directory is the first argument.
++            // Open a new window (its own Neovim) whose working directory is the first argument, optionally with
++            // extra arguments for that Neovim as the second.
+             #[cfg(unix)]
+             "neovide.open_window" => {
+                 if let Some(cwd) = arguments.first().and_then(|v| v.as_str()) {
++                    // The optional second argument is a list of extra arguments for the new Neovim
++                    // (for example ["--cmd", "let g:kind='git'", "-c", "DiffviewOpen"]).
++                    let neovim_args = arguments
++                        .get(1)
++                        .and_then(|v| v.as_array())
++                        .map(|list| {
++                            list.iter().filter_map(|a| a.as_str().map(str::to_owned)).collect::<Vec<_>>()
++                        })
++                        .filter(|list| !list.is_empty());
+                     let payload = EventPayload::all(UserEvent::OpenFiles {
+                         files: Vec::new(),
+                         cwd: Some(cwd.to_string()),
+@@ -380,7 +390,7 @@ impl Handler for NeovimHandler {
+                         tabs: false,
+                         new_window: true,
+                         neovim_bin: None,
+-                        neovim_args: None,
++                        neovim_args,
+                     });
+                     let _ = self.proxy.lock().unwrap().send_event(payload);
+                 }
