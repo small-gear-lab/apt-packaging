@@ -1,0 +1,105 @@
+From 43a641b5c776a2fec298dbdea57fd11daef8912c Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 14:56:40 +0900
+Subject: [PATCH] Add neovide.focus_route and g:neovide_route_id to focus a
+ chosen window
+
+Each Neovim gets its window's number as g:neovide_route_id, and
+neovide.focus_route takes such a number, so an editor can list its windows
+and move to the one the user picks.
+---
+ src/bridge/handler.rs     |  5 +++++
+ src/bridge/mod.rs         |  2 ++
+ src/window/events.rs      |  4 ++++
+ src/window/wrapper/mod.rs | 20 +++++++++++++++++++-
+ 4 files changed, 30 insertions(+), 1 deletion(-)
+
+diff --git a/src/bridge/handler.rs b/src/bridge/handler.rs
+index 8ccc34b..f87ad35 100644
+--- a/src/bridge/handler.rs
++++ b/src/bridge/handler.rs
+@@ -385,6 +385,11 @@ impl Handler for NeovimHandler {
+                     let _ = self.proxy.lock().unwrap().send_event(payload);
+                 }
+             }
++            "neovide.focus_route" => {
++                if let Some(route) = arguments.first().and_then(|v| v.as_u64()) {
++                    self.send_window_command(WindowCommand::FocusRoute(route));
++                }
++            }
+             "neovide.cycle_window" => {
+                 let direction = arguments.first().and_then(|v| v.as_i64()).unwrap_or(1);
+                 self.send_window_command(WindowCommand::CycleWindow(if direction < 0 {
+diff --git a/src/bridge/mod.rs b/src/bridge/mod.rs
+index eedfa25..aeb3a6e 100644
+--- a/src/bridge/mod.rs
++++ b/src/bridge/mod.rs
+@@ -273,6 +273,8 @@ async fn create_neovim_session(
+     // This is too verbose to keep enabled all the time
+     // log::info!("Api information {:#?}", api_information);
+     setup_neovide_specific_state(&session.neovim, remote, &api_information, &settings).await?;
++    // Let the editor tell its window apart from the others (neovide.focus_route takes this id)
++    let _ = session.neovim.set_var("neovide_route_id", Value::from(route_id.get())).await;
+     if api_information.version.has_version(0, 12, 0, Some(1264)) {
+         let mut window_settings = settings.get::<WindowSettings>();
+         window_settings.has_mouse_grid_detection = true;
+diff --git a/src/window/events.rs b/src/window/events.rs
+index afea97d..e467aec 100644
+--- a/src/window/events.rs
++++ b/src/window/events.rs
+@@ -71,6 +71,8 @@ pub enum WindowCommand {
+     FocusWindow,
+     /// Focus the next (1) or previous (-1) window, in the order the windows were created.
+     CycleWindow(i32),
++    /// Focus the window whose route has this id (the value of g:neovide_route_id in its Neovim).
++    FocusRoute(u64),
+     #[cfg(target_os = "macos")]
+     TouchpadPressure {
+         col: i64,
+@@ -175,6 +177,8 @@ pub enum EventTarget {
+ pub struct RouteId(u64);
+ 
+ impl RouteId {
++    pub fn get(self) -> u64 { self.0 }
++
+     pub fn next() -> Self {
+         static NEXT_ROUTE_ID: AtomicU64 = AtomicU64::new(1);
+         Self(NEXT_ROUTE_ID.fetch_add(1, Ordering::Relaxed))
+diff --git a/src/window/wrapper/mod.rs b/src/window/wrapper/mod.rs
+index 236d237..7bbc7f0 100644
+--- a/src/window/wrapper/mod.rs
++++ b/src/window/wrapper/mod.rs
+@@ -495,6 +495,9 @@ impl WinitWindowWrapper {
+             WindowCommand::CycleWindow(direction) => {
+                 self.cycle_window(target_window_id, direction);
+             }
++            WindowCommand::FocusRoute(route) => {
++                self.focus_route_by_number(route);
++            }
+             WindowCommand::FocusWindow => {
+                 if let Some(route) = &self.routes.get(&target_window_id) {
+                     let window = &route.window.winit_window;
+@@ -2137,7 +2140,22 @@ impl WinitWindowWrapper {
+             return;
+         };
+         let next = if direction < 0 { (index + count - 1) % count } else { (index + 1) % count };
+-        let Some(route) = self.routes.get(&ordered[next].1) else {
++        self.focus_window_id(ordered[next].1);
++    }
++
++    /// Focus the window whose route has this number.
++    pub fn focus_route_by_number(&self, route: u64) {
++        let target = self
++            .routes
++            .iter()
++            .find_map(|(window_id, r)| (r.route_id.get() == route).then_some(*window_id));
++        if let Some(window_id) = target {
++            self.focus_window_id(window_id);
++        }
++    }
++
++    fn focus_window_id(&self, window_id: WindowId) {
++        let Some(route) = self.routes.get(&window_id) else {
+             return;
+         };
+         let window = &route.window.winit_window;

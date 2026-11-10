@@ -5,7 +5,8 @@
 #        build-patched.sh 0.17.2 2   ->  neovide_0.17.2-1~smallgearlab2_amd64.deb
 #
 # The patches make --reuse-instance / --new-window / --chdir work on Linux (one process, one window per
-# nvim session), fix drawing with several OpenGL windows and add neovide.cycle_window (focus the next window).
+# nvim session), fix drawing with several OpenGL windows and add neovide.cycle_window (focus the next window),
+# neovide.open_window (open a window in a directory) and neovide.focus_route / g:neovide_route_id (focus a chosen window).
 # They are written against 0.17.2. winit-patches/ holds a patch for winit 0.30.13 (Wayland: pass the key press
 # serial with the activation token, so GNOME moves the focus instead of only showing a notification);
 # the build uses a patched copy of winit through [patch.crates-io].
@@ -86,7 +87,8 @@ gzip -9n -c > "$root/usr/share/doc/neovide/changelog.Debian.gz" <<EOF
 neovide ($deb_version) resolute; urgency=medium
 
   * Build of Neovide $version from source with patches: --reuse-instance, --new-window and --chdir on
-    Linux, per-window OpenGL context switching, neovide.cycle_window, and a winit patch for Wayland focus.
+    Linux, per-window OpenGL context switching, neovide.cycle_window, neovide.open_window,
+    neovide.focus_route, and a winit patch for Wayland focus.
 
  -- $maintainer  $(date -R)
 EOF
@@ -120,7 +122,8 @@ Description: No Nonsense Neovim Client in Rust (multi-window patches)
  .
  This build adds Linux support for --reuse-instance, --new-window and --chdir
  (several windows in one process), draws each OpenGL window in its own context and can move the
- focus between windows (neovide.cycle_window; on Wayland through a patched winit).
+ focus between windows, open windows and focus a chosen one (neovide.cycle_window, open_window,
+ focus_route; on Wayland through a patched winit).
 EOF
 
 find "$root" -type d -exec chmod 755 {} +

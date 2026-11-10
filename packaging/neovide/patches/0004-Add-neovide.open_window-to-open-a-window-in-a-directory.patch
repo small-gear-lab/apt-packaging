@@ -1,0 +1,38 @@
+From 818a265ed5b0325104ecb89efe86a15f77d42499 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 14:53:10 +0900
+Subject: [PATCH] Add neovide.open_window to open a window in a directory
+
+A notification that opens a new window (its own Neovim) with the given
+working directory, so an editor can restore several workspaces at start.
+---
+ src/bridge/handler.rs | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/src/bridge/handler.rs b/src/bridge/handler.rs
+index fe0063f..8ccc34b 100644
+--- a/src/bridge/handler.rs
++++ b/src/bridge/handler.rs
+@@ -369,6 +369,22 @@ impl Handler for NeovimHandler {
+             "neovide.focus_window" => {
+                 self.send_window_command(WindowCommand::FocusWindow);
+             }
++            // Open a new window (its own Neovim) whose working directory is the first argument.
++            #[cfg(unix)]
++            "neovide.open_window" => {
++                if let Some(cwd) = arguments.first().and_then(|v| v.as_str()) {
++                    let payload = EventPayload::all(UserEvent::OpenFiles {
++                        files: Vec::new(),
++                        cwd: Some(cwd.to_string()),
++                        caller_cwd: None,
++                        tabs: false,
++                        new_window: true,
++                        neovim_bin: None,
++                        neovim_args: None,
++                    });
++                    let _ = self.proxy.lock().unwrap().send_event(payload);
++                }
++            }
+             "neovide.cycle_window" => {
+                 let direction = arguments.first().and_then(|v| v.as_i64()).unwrap_or(1);
+                 self.send_window_command(WindowCommand::CycleWindow(if direction < 0 {
