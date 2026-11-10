@@ -1,0 +1,71 @@
+From 14294b9d199fa2a05e9d1c78b4214cd751df489a Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 15:57:44 +0900
+Subject: [PATCH] Terminate the EGL display only when the last window's
+ renderer is dropped
+
+The EGL display is shared by all the windows. Closing one of several windows
+terminated it under the others, which crashed the whole process (a segfault
+in memmove). Count the live OpenGL renderers and terminate only the last.
+---
+ src/renderer/opengl.rs | 19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/src/renderer/opengl.rs b/src/renderer/opengl.rs
+index aa06273..97d2116 100644
+--- a/src/renderer/opengl.rs
++++ b/src/renderer/opengl.rs
+@@ -7,6 +7,7 @@ use std::ffi::c_void;
+ use std::num::NonZeroU32;
+ use std::rc::Rc;
+ use std::sync::Arc;
++use std::sync::atomic::{AtomicUsize, Ordering};
+ 
+ use gl::MAX_RENDERBUFFER_SIZE;
+ use gl::types::*;
+@@ -57,6 +58,10 @@ use crate::profiling::tracy_gpu_zone;
+ use crate::settings::Settings;
+ use crate::window::EventPayload;
+ 
++/// The number of live OpenGL renderers. The EGL display is shared by all the windows, so it may only be
++/// terminated when the last renderer is dropped.
++static LIVE_RENDERERS: AtomicUsize = AtomicUsize::new(0);
++
+ pub struct OpenGLSkiaRenderer {
+     // NOTE: The destruction order is important, so don't re-arrange
+     // If possible keep it the reverse of the initialization order
+@@ -157,6 +162,7 @@ impl OpenGLSkiaRenderer {
+             &settings,
+         );
+ 
++        LIVE_RENDERERS.fetch_add(1, Ordering::SeqCst);
+         Self {
+             window_surface,
+             context,
+@@ -243,6 +249,7 @@ impl SkiaRenderer for OpenGLSkiaRenderer {
+ 
+ impl Drop for OpenGLSkiaRenderer {
+     fn drop(&mut self) {
++        let last = LIVE_RENDERERS.fetch_sub(1, Ordering::SeqCst) == 1;
+         match self.window_surface.display() {
+             #[cfg(not(target_os = "macos"))]
+             glutin::display::Display::Egl(display) => {
+@@ -252,10 +259,14 @@ impl Drop for OpenGLSkiaRenderer {
+ 
+                 self.gr_context.release_resources_and_abandon();
+ 
+-                // SAFETY: the display is being destroyed after destroying all the
+-                // windows, thus no attempt to access the EGL state will be made.
+-                unsafe {
+-                    display.terminate();
++                // The display is shared by all the windows: terminating it while another window still
++                // draws with it crashes the whole process. Only the last renderer terminates it.
++                if last {
++                    // SAFETY: the display is being destroyed after destroying all the
++                    // windows, thus no attempt to access the EGL state will be made.
++                    unsafe {
++                        display.terminate();
++                    }
+                 }
+             }
+             _ => (),

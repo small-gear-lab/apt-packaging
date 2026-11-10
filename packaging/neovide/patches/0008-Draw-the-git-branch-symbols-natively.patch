@@ -1,0 +1,229 @@
+From 310b2513f31548eabc3fa13a5c1499520c82a1d3 Mon Sep 17 00:00:00 2001
+From: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Date: Tue, 10 Nov 2026 16:21:05 +0900
+Subject: [PATCH] Draw the git branch symbols (U+F5D0..U+F5FB) natively
+
+The private use area symbols for git-like graphs (lines, curves, joints and
+commit circles; designed for vim-flog and also drawn by kitty) are drawn with
+the box drawing renderer instead of relying on a font. The shapes follow the
+layout of the symbols, not any other implementation. The commit circles
+follow the height of the line and may spill over into the neighbouring
+cells.
+---
+ src/renderer/box_drawing/renderer.rs | 189 ++++++++++++++++++++++++++-
+ 1 file changed, 188 insertions(+), 1 deletion(-)
+
+diff --git a/src/renderer/box_drawing/renderer.rs b/src/renderer/box_drawing/renderer.rs
+index a89d9d1..cd49ea5 100644
+--- a/src/renderer/box_drawing/renderer.rs
++++ b/src/renderer/box_drawing/renderer.rs
+@@ -782,6 +782,52 @@ impl<'a> Context<'a> {
+     }
+ }
+ 
++impl<'a> Context<'a> {
++    /// A commit of a git graph: a filled or a hollow circle, with lines running from it to the
++    /// sides of the cell. The lines start at the edge of the circle, so a hollow circle stays empty.
++    fn draw_branch_commit(&self, filled: bool, left: bool, right: bool, up: bool, down: bool) {
++        let stroke_width = self.get_stroke_width_pixels(Thickness::Thin);
++        let min = self.bounding_box.min;
++        let max = self.bounding_box.max;
++        let center = self.bounding_box.center();
++        // The lines of the other branch symbols are aligned like this, so they meet the circle's center
++        let cx = center.x.align_mid_line(stroke_width);
++        let cy = center.y.align_mid_line(stroke_width);
++        let width = max.x - min.x;
++        let height = max.y - min.y;
++        // The size follows the height of the line. A circle wider than the cell spills over into the
++        // neighbouring cells (the clip rectangle of these symbols is widened, see draw_box_glyph)
++        let radius = (height * 0.28).min(width * 0.9).max(stroke_width * 1.5);
++
++        let mut line = self.fg_paint();
++        line.set_style(PaintStyle::Stroke);
++        line.set_stroke_width(stroke_width);
++        if up {
++            self.canvas.draw_line(Point::new(cx, min.y.round()), Point::new(cx, cy - radius), &line);
++        }
++        if down {
++            self.canvas.draw_line(Point::new(cx, cy + radius), Point::new(cx, max.y.round()), &line);
++        }
++        if left && cx - radius > min.x.round() {
++            self.canvas.draw_line(Point::new(min.x.round(), cy), Point::new(cx - radius, cy), &line);
++        }
++        if right && cx + radius < max.x.round() {
++            self.canvas.draw_line(Point::new(cx + radius, cy), Point::new(max.x.round(), cy), &line);
++        }
++
++        let mut circle = self.fg_paint();
++        circle.set_anti_alias(true);
++        if filled {
++            circle.set_style(PaintStyle::Fill);
++            self.canvas.draw_circle(Point::new(cx, cy), radius, &circle);
++        } else {
++            circle.set_style(PaintStyle::Stroke);
++            circle.set_stroke_width(stroke_width);
++            self.canvas.draw_circle(Point::new(cx, cy), radius - stroke_width * 0.5, &circle);
++        }
++    }
++}
++
+ #[derive(Clone, Copy)]
+ enum Height {
+     Tall,
+@@ -1698,6 +1744,138 @@ static BOX_CHARS: LazyLock<BTreeMap<char, BoxDrawFn>> = LazyLock::new(|| {
+         ];
+     }
+ 
++
++    // Branch drawing symbols for git-like graphs (the private use area U+F5D0..U+F5FB). The set was
++    // designed for vim-flog and is also drawn by kitty. These shapes are drawn from the layout of the
++    // symbols (which sides they connect, which joints are curved), not copied from any implementation.
++    box_char!['\u{F5D0}' -> |ctx: &Context| { ctx.draw_fg_line1(Horizontal, HalfSelector::Both); }];
++    box_char!['\u{F5D1}' -> |ctx: &Context| { ctx.draw_fg_line1(Vertical, HalfSelector::Both); }];
++    box_char!['\u{F5D2}' -> |ctx: &Context| { ctx.draw_dashed_line(Horizontal, Thickness::Thin, 3); }];
++    box_char!['\u{F5D3}' -> |ctx: &Context| { ctx.draw_dashed_line(Horizontal, Thickness::Thin, 4); }];
++    box_char!['\u{F5D4}' -> |ctx: &Context| { ctx.draw_dashed_line(Vertical, Thickness::Thin, 3); }];
++    box_char!['\u{F5D5}' -> |ctx: &Context| { ctx.draw_dashed_line(Vertical, Thickness::Thin, 4); }];
++    // Curves: right-down, left-down, right-up, left-up
++    box_char!['\u{F5D6}' -> |ctx: &Context| { ctx.draw_rounded_corner(Corner::TopLeft); }];
++    box_char!['\u{F5D7}' -> |ctx: &Context| { ctx.draw_rounded_corner(Corner::TopRight); }];
++    box_char!['\u{F5D8}' -> |ctx: &Context| { ctx.draw_rounded_corner(Corner::BottomLeft); }];
++    box_char!['\u{F5D9}' -> |ctx: &Context| { ctx.draw_rounded_corner(Corner::BottomRight); }];
++    // A vertical line with a curved branch to the right (up, down, both) or to the left (up, down, both)
++    box_char!['\u{F5DA}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++    }];
++    box_char!['\u{F5DB}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    box_char!['\u{F5DC}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    box_char!['\u{F5DD}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++    }];
++    box_char!['\u{F5DE}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    box_char!['\u{F5DF}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    // A horizontal line with a stem down: the left arm curved, the right arm curved, both curved
++    box_char!['\u{F5E0}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Last);
++        ctx.draw_fg_line1(Vertical, HalfSelector::Last);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    box_char!['\u{F5E1}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::First);
++        ctx.draw_fg_line1(Vertical, HalfSelector::Last);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    box_char!['\u{F5E2}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Last);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    // The same with a stem up
++    box_char!['\u{F5E3}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Last);
++        ctx.draw_fg_line1(Vertical, HalfSelector::First);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++    }];
++    box_char!['\u{F5E4}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::First);
++        ctx.draw_fg_line1(Vertical, HalfSelector::First);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++    }];
++    box_char!['\u{F5E5}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::First);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++    }];
++    // A vertical line that both side branches curve into, upwards or downwards
++    box_char!['\u{F5E6}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++    }];
++    box_char!['\u{F5E7}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Vertical, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    // A horizontal line that the vertical line curves into from both sides of one end
++    box_char!['\u{F5E8}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    box_char!['\u{F5E9}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    // A vertical line that is shifted to the side in the middle (an S shaped joint), without and with a bar
++    box_char!['\u{F5EA}' -> |ctx: &Context| {
++        ctx.draw_rounded_corner(Corner::BottomRight);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    box_char!['\u{F5EB}' -> |ctx: &Context| {
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    box_char!['\u{F5EC}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomRight);
++        ctx.draw_rounded_corner(Corner::TopLeft);
++    }];
++    box_char!['\u{F5ED}' -> |ctx: &Context| {
++        ctx.draw_fg_line1(Horizontal, HalfSelector::Both);
++        ctx.draw_rounded_corner(Corner::BottomLeft);
++        ctx.draw_rounded_corner(Corner::TopRight);
++    }];
++    // Commits: a filled circle (a merge) and a hollow circle, alone and with lines to the right, to the
++    // left, to both sides, downwards, upwards, and up and down
++    box_char!['\u{F5EE}' -> |ctx: &Context| { ctx.draw_branch_commit(true, false, false, false, false); }];
++    box_char!['\u{F5EF}' -> |ctx: &Context| { ctx.draw_branch_commit(false, false, false, false, false); }];
++    box_char!['\u{F5F0}' -> |ctx: &Context| { ctx.draw_branch_commit(true, false, true, false, false); }];
++    box_char!['\u{F5F1}' -> |ctx: &Context| { ctx.draw_branch_commit(false, false, true, false, false); }];
++    box_char!['\u{F5F2}' -> |ctx: &Context| { ctx.draw_branch_commit(true, true, false, false, false); }];
++    box_char!['\u{F5F3}' -> |ctx: &Context| { ctx.draw_branch_commit(false, true, false, false, false); }];
++    box_char!['\u{F5F4}' -> |ctx: &Context| { ctx.draw_branch_commit(true, true, true, false, false); }];
++    box_char!['\u{F5F5}' -> |ctx: &Context| { ctx.draw_branch_commit(false, true, true, false, false); }];
++    box_char!['\u{F5F6}' -> |ctx: &Context| { ctx.draw_branch_commit(true, false, false, false, true); }];
++    box_char!['\u{F5F7}' -> |ctx: &Context| { ctx.draw_branch_commit(false, false, false, false, true); }];
++    box_char!['\u{F5F8}' -> |ctx: &Context| { ctx.draw_branch_commit(true, false, false, true, false); }];
++    box_char!['\u{F5F9}' -> |ctx: &Context| { ctx.draw_branch_commit(false, false, false, true, false); }];
++    box_char!['\u{F5FA}' -> |ctx: &Context| { ctx.draw_branch_commit(true, false, false, true, true); }];
++    box_char!['\u{F5FB}' -> |ctx: &Context| { ctx.draw_branch_commit(false, false, false, true, true); }];
++
+     m
+ });
+ 
+@@ -1771,7 +1949,16 @@ impl Renderer {
+                 dst.min + Vector2::new(self.cell_size.width * i as f32, 0.0),
+                 self.cell_size,
+             )) + PixelVec::new(window_pos.x, 0.0);
+-            canvas.clip_rect(to_skia_rect(&rect), None, Some(false));
++            // The commit circles of the branch symbols may be wider than a cell
++            let clip = if ('\u{F5EE}'..='\u{F5FB}').contains(&ch) {
++                Box2::from_rect(glamour::Rect::new(
++                    rect.min - PixelVec::new(self.cell_size.width, 0.0),
++                    Size2::new(self.cell_size.width * 3.0, self.cell_size.height),
++                ))
++            } else {
++                rect
++            };
++            canvas.clip_rect(to_skia_rect(&clip), None, Some(false));
+             let ctx = Context::new(canvas, &self.settings, rect, color_fg, self.em_size);
+             (draw_fn)(&ctx);
+             canvas.restore();
