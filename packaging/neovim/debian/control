@@ -1,0 +1,51 @@
+Source: neovim
+Section: editors
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+Build-Depends:
+ cmake (>= 3.16),
+ debhelper-compat (= 13),
+ gettext,
+ libacl1-dev,
+ libluajit-5.1-dev [amd64 armel armhf arm64 hurd-i386 i386] | liblua5.1-dev,
+ libtree-sitter-dev (>= 0.25),
+ libunibilium-dev,
+ libutf8proc-dev (>= 2.10),
+ libuv1-dev,
+ lua-bitop,
+ lua-lpeg (>= 1.1.0),
+ lua-luv-dev (>= 1.43.0),
+ luajit [amd64 armel armhf arm64 hurd-i386 i386],
+ lua5.1,
+ ninja-build,
+Standards-Version: 4.7.3
+Homepage: https://neovim.io/
+
+Package: neovim
+Architecture: any
+Depends:
+ neovim-runtime (= ${source:Version}),
+ ${neovim:Depends},
+ ${misc:Depends},
+ ${shlibs:Depends}
+Recommends: python3-pynvim (>= 0.5.2-2~), xclip | xsel | wl-clipboard, xxd
+Suggests: ctags, vim-scripts
+Provides: editor
+Description: heavily refactored vim fork
+ Neovim is a fork of Vim focused on modern code and features, rather than
+ running in legacy environments.
+ .
+ This is a rebuild of the upstream release on top of Ubuntu's packaging. The
+ bundled tree-sitter parsers are the ones pinned by upstream (cmake.deps/deps.txt).
+
+Package: neovim-runtime
+Architecture: all
+Depends: ${misc:Depends}
+Multi-Arch: foreign
+Description: heavily refactored vim fork (runtime files)
+ Neovim is a fork of Vim focused on modern code and features, rather than
+ running in legacy environments.
+ .
+ This package contains the architecture independent runtime files used by
+ neovim.  Examples of such files are: documentation, rules for
+ language-specific highlighting and indentation, color schemes, and standard
+ plugins.

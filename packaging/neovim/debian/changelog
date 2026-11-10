@@ -1,0 +1,8 @@
+neovim (0.12.6-1~smallgearlab1) resolute; urgency=medium
+
+  * Rebuild of upstream 0.12.6 on Ubuntu's 0.11.6-1 packaging.
+  * Tree-sitter parsers are built from the versions pinned in upstream's
+    cmake.deps/deps.txt (fetched and sha256-checked by build.sh).
+  * Test suite not run.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Tue, 10 Nov 2026 10:36:17 +0900

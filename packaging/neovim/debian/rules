@@ -1,0 +1,74 @@
+#!/usr/bin/make -f
+# Ubuntu's neovim packaging (0.11.6-1) carried over to a newer upstream release.
+# Differences: no test suite; the tree-sitter parsers are built from the sources upstream pins
+# (cmake.deps/deps.txt), which build.sh fetches and verifies into debian/external/ts/<lang>/,
+# instead of Ubuntu's tree-sitter-*-src packages (those are older than what the runtime expects).
+
+DEB_BUILD_MAINT_OPTIONS = hardening=+all
+include /usr/share/dpkg/buildflags.mk
+include /usr/share/dpkg/architecture.mk
+
+# cmake doesn't honor CPPFLAGS
+CFLAGS += $(CPPFLAGS) -DDISABLE_LOG
+CXXFLAGS += $(CPPFLAGS)
+export CFLAGS CXXFLAGS LDFLAGS
+
+BITOP_DEPENDS = lua-bitop
+PREFER_LUA = ON
+COMPILE_LUA = ON
+
+ifneq (,$(findstring ok installed,$(shell dpkg-query -W -f '$${Status}' luajit 2>&1)))
+  BITOP_DEPENDS =
+  PREFER_LUA = OFF
+  COMPILE_LUA = OFF
+endif
+
+ifeq (,$(filter terse,$(DEB_BUILD_OPTIONS)))
+  BUILD = ninja -v -C build
+else
+  BUILD = ninja -C build
+endif
+
+BUILD_TYPE=Release
+ifneq (,$(filter noopt,$(DEB_BUILD_OPTIONS)))
+  BUILD_TYPE=Debug
+endif
+
+TS = debian/external/ts
+
+%:
+	dh $@ --buildsystem=cmake+ninja --builddirectory=build
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DPREFER_LUA=$(PREFER_LUA) -DLIBLUV_LIBRARY:FILEPATH=/usr/lib/$(DEB_HOST_MULTIARCH)/lua/5.1/luv.so -DLIBLUV_INCLUDE_DIR:PATH=/usr/include/lua5.1 -DCOMPILE_LUA=$(COMPILE_LUA) -DUSE_BUNDLED_BUSTED=OFF -DENABLE_TRANSLATIONS=ON
+
+# Same as upstream's cmake.deps: every src/*.c of a grammar is one module (markdown has two grammars).
+define ts_parser
+	$(CC) $(CFLAGS) $(LDFLAGS) -w -shared -fPIC -I$(1)/src $(1)/src/*.c -o runtime/parser/$(2).so
+endef
+
+override_dh_auto_build:
+	$(BUILD)
+	mkdir -p runtime/parser/
+	$(call ts_parser,$(TS)/c,c)
+	$(call ts_parser,$(TS)/lua,lua)
+	$(call ts_parser,$(TS)/query,query)
+	$(call ts_parser,$(TS)/vim,vim)
+	$(call ts_parser,$(TS)/vimdoc,vimdoc)
+	$(call ts_parser,$(TS)/markdown/tree-sitter-markdown,markdown)
+	$(call ts_parser,$(TS)/markdown/tree-sitter-markdown-inline,markdown_inline)
+
+override_dh_auto_install:
+	env DESTDIR=$(CURDIR)/debian/tmp $(BUILD) install
+
+override_dh_install-indep:
+	dh_install -i -X.so
+
+override_dh_auto_clean:
+	$(MAKE) clean
+	dh_auto_clean
+
+override_dh_auto_test:
+
+override_dh_gencontrol:
+	dh_gencontrol -- -Vneovim:Depends=$(BITOP_DEPENDS)
