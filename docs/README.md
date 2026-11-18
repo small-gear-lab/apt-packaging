@@ -95,7 +95,7 @@ Ubuntu Pro ESM is pinned at 510, the archive and this repo are at 500, so withou
 the older ESM kitty won over our newer one. The pin file lowers ESM to 500 for the kitty
 packages only; `Package: *` is deliberately not used.
 
-See also: `kitty-build.md`.
+See also: `kitty-build.md`, `aria2-build.md` (aria2 with SOCKS5; its version uses `+smallgearlab<N>`, not `~`).
 
 ## Desktop entries (kitty)
 
