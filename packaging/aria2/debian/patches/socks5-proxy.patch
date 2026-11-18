@@ -1,0 +1,1473 @@
+Description: Add SOCKS5 proxy support for HTTP/HTTPS/FTP/SFTP downloads
+Author: marie-222 <289302950+marie-222@users.noreply.github.com>
+Origin: other, commit 08c6ed3a7eba828af98ce97e3da5964ef261272b of the author's fork
+Forwarded: no
+---
+ doc/manual-src/en/aria2c.rst         |  27 ++-
+ src/FeatureConfig.cc                 |   3 +
+ src/FtpInitiateConnectionCommand.cc  |  12 +-
+ src/FtpNegotiationCommand.cc         |  44 ++++
+ src/FtpNegotiationCommand.h          |   5 +
+ src/FtpSocksProxyConnectChain.h      |  80 ++++++++
+ src/HttpInitiateConnectionCommand.cc |  12 +-
+ src/HttpSocksProxyConnectChain.h     |  75 +++++++
+ src/Makefile.am                      |   4 +
+ src/OptionHandlerImpl.cc             |  18 +-
+ src/Socks5Handshake.cc               | 291 +++++++++++++++++++++++++++
+ src/Socks5Handshake.h                | 113 +++++++++++
+ src/SocksProxyCommand.cc             | 128 ++++++++++++
+ src/SocksProxyCommand.h              |  86 ++++++++
+ test/Makefile.am                     |   1 +
+ test/OptionHandlerTest.cc            |  22 +-
+ test/Socks5HandshakeTest.cc          | 220 ++++++++++++++++++++
+ 17 files changed, 1125 insertions(+), 16 deletions(-)
+ create mode 100644 src/FtpSocksProxyConnectChain.h
+ create mode 100644 src/HttpSocksProxyConnectChain.h
+ create mode 100644 src/Socks5Handshake.cc
+ create mode 100644 src/Socks5Handshake.h
+ create mode 100644 src/SocksProxyCommand.cc
+ create mode 100644 src/SocksProxyCommand.h
+ create mode 100644 test/Socks5HandshakeTest.cc
+
+diff --git a/doc/manual-src/en/aria2c.rst b/doc/manual-src/en/aria2c.rst
+index 6d54f361..09a63dee 100644
+--- a/doc/manual-src/en/aria2c.rst
++++ b/doc/manual-src/en/aria2c.rst
+@@ -118,9 +118,20 @@ HTTP/FTP/SFTP Options
+   proxy server for a particular protocol using :option:`--http-proxy`,
+   :option:`--https-proxy` and :option:`--ftp-proxy` options.  This affects all
+   downloads.
+-  The format of PROXY is ``[http://][USER:PASSWORD@]HOST[:PORT]``.
++  The format of PROXY is ``[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``.
+   See also `ENVIRONMENT`_ section.
+ 
++  .. note::
++
++    ``socks5://`` and ``socks5h://`` select a SOCKS5 proxy, which tunnels
++    HTTP, HTTPS, FTP and SFTP downloads.  With ``socks5://``, aria2 resolves
++    the host name of the download URI itself and sends the resulting IP
++    address to the proxy.  With ``socks5h://``, aria2 sends the host name to
++    the proxy and the proxy resolves it.  Use ``socks5h://`` if the host
++    names must not be resolved locally.  The default port is 1080.  If a
++    user name is given, the username/password authentication is offered to
++    the proxy.
++
+   .. note::
+ 
+     If user and password are embedded in proxy URI and they are also
+@@ -472,7 +483,7 @@ HTTP Specific Options
+   Use a proxy server for HTTP.  To override a previously defined proxy,
+   use "".
+   See also the :option:`--all-proxy` option.  This affects all http downloads.
+-  The format of PROXY is ``[http://][USER:PASSWORD@]HOST[:PORT]``
++  The format of PROXY is ``[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+ 
+ .. option:: --http-proxy-passwd=<PASSWD>
+ 
+@@ -487,7 +498,7 @@ HTTP Specific Options
+   Use a proxy server for HTTPS. To override a previously defined proxy,
+   use "".
+   See also the :option:`--all-proxy` option.  This affects all https download.
+-  The format of PROXY is ``[http://][USER:PASSWORD@]HOST[:PORT]``
++  The format of PROXY is ``[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+ 
+ .. option:: --https-proxy-passwd=<PASSWD>
+ 
+@@ -598,7 +609,7 @@ FTP/SFTP Specific Options
+   Use a proxy server for FTP.  To override a previously defined proxy,
+   use "".
+   See also the :option:`--all-proxy` option.  This affects all ftp downloads.
+-  The format of PROXY is ``[http://][USER:PASSWORD@]HOST[:PORT]``
++  The format of PROXY is ``[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+ 
+ .. option:: --ftp-proxy-passwd=<PASSWD>
+ 
+@@ -1940,22 +1951,22 @@ ENVIRONMENT
+ -----------
+ aria2 recognizes the following environment variables.
+ 
+-``http_proxy [http://][USER:PASSWORD@]HOST[:PORT]``
++``http_proxy [http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+   Specify proxy server for use in HTTP.
+   Overrides http-proxy value in configuration file.
+   The command-line option :option:`--http-proxy` overrides this value.
+ 
+-``https_proxy [http://][USER:PASSWORD@]HOST[:PORT]``
++``https_proxy [http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+   Specify proxy server for use in HTTPS.
+   Overrides https-proxy value in configuration file.
+   The command-line option :option:`--https-proxy` overrides this value.
+ 
+-``ftp_proxy [http://][USER:PASSWORD@]HOST[:PORT]``
++``ftp_proxy [http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+   Specify proxy server for use in FTP.
+   Overrides ftp-proxy value in configuration file.
+   The command-line option :option:`--ftp-proxy` overrides this value.
+ 
+-``all_proxy [http://][USER:PASSWORD@]HOST[:PORT]``
++``all_proxy [http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]``
+   Specify proxy server for use if no protocol-specific proxy is specified.
+   Overrides all-proxy value in configuration file.
+   The command-line option :option:`--all-proxy` overrides this value.
+diff --git a/src/FeatureConfig.cc b/src/FeatureConfig.cc
+index 2b43c8b1..c70b6174 100644
+--- a/src/FeatureConfig.cc
++++ b/src/FeatureConfig.cc
+@@ -88,6 +88,9 @@ uint16_t getDefaultPort(const std::string& protocol)
+   else if (protocol == "sftp") {
+     return 22;
+   }
++  else if (protocol == "socks5" || protocol == "socks5h") {
++    return 1080;
++  }
+   else {
+     return 0;
+   }
+diff --git a/src/FtpInitiateConnectionCommand.cc b/src/FtpInitiateConnectionCommand.cc
+index b41655f8..27f17306 100644
+--- a/src/FtpInitiateConnectionCommand.cc
++++ b/src/FtpInitiateConnectionCommand.cc
+@@ -60,6 +60,7 @@
+ #include "FtpNegotiationConnectChain.h"
+ #include "FtpTunnelRequestConnectChain.h"
+ #include "HttpRequestConnectChain.h"
++#include "FtpSocksProxyConnectChain.h"
+ #ifdef HAVE_LIBSSH2
+ #  include "SftpNegotiationConnectChain.h"
+ #  include "SftpNegotiationCommand.h"
+@@ -84,7 +85,11 @@ std::unique_ptr<Command> FtpInitiateConnectionCommand::createNextCommandProxied(
+ {
+   std::string options;
+   std::shared_ptr<SocketCore> pooledSocket;
+-  std::string proxyMethod = resolveProxyMethod(getRequest()->getProtocol());
++  bool isSocksProxy =
++      SocksProxyCommand::isSocksProtocol(proxyRequest->getProtocol());
++  std::string proxyMethod = isSocksProxy
++                                ? V_TUNNEL
++                                : resolveProxyMethod(getRequest()->getProtocol());
+ 
+   // sftp always use tunnel mode
+   if (proxyMethod == V_GET) {
+@@ -112,7 +117,10 @@ std::unique_ptr<Command> FtpInitiateConnectionCommand::createNextCommandProxied(
+     auto c = make_unique<ConnectCommand>(getCuid(), getRequest(), proxyRequest,
+                                          getFileEntry(), getRequestGroup(),
+                                          getDownloadEngine(), getSocket());
+-    if (proxyMethod == V_GET) {
++    if (isSocksProxy) {
++      c->setControlChain(std::make_shared<FtpSocksProxyConnectChain>());
++    }
++    else if (proxyMethod == V_GET) {
+       // Use GET for FTP via HTTP proxy.
+       getRequest()->setMethod(Request::METHOD_GET);
+       c->setControlChain(std::make_shared<HttpRequestConnectChain>());
+diff --git a/src/FtpNegotiationCommand.cc b/src/FtpNegotiationCommand.cc
+index d9100b42..b9a47e0e 100644
+--- a/src/FtpNegotiationCommand.cc
++++ b/src/FtpNegotiationCommand.cc
+@@ -74,6 +74,8 @@
+ #include "CheckIntegrityEntry.h"
+ #include "error_code.h"
+ #include "SocketRecvBuffer.h"
++#include "Socks5Handshake.h"
++#include "SocksProxyCommand.h"
+ #include "NullProgressInfoFile.h"
+ #include "ChecksumCheckIntegrityEntry.h"
+ 
+@@ -736,6 +738,10 @@ bool FtpNegotiationCommand::resolveProxy()
+   dataSocket_->establishConnection(proxyAddr_, proxyReq->getPort());
+   disableReadCheckSocket();
+   setWriteCheckSocket(dataSocket_);
++  if (SocksProxyCommand::isSocksProtocol(proxyReq->getProtocol())) {
++    sequence_ = SEQ_SOCKS_HANDSHAKE;
++    return false;
++  }
+   auto socketRecvBuffer = std::make_shared<SocketRecvBuffer>(dataSocket_);
+   http_ = std::make_shared<HttpConnection>(getCuid(), dataSocket_,
+                                            socketRecvBuffer);
+@@ -743,6 +749,42 @@ bool FtpNegotiationCommand::resolveProxy()
+   return false;
+ }
+ 
++bool FtpNegotiationCommand::socksHandshake()
++{
++  if (!socksHandshake_) {
++    auto proxyReq = createProxyRequest();
++    const std::string& host = getRequest()->getHost();
++    std::string targetAddr;
++    if (proxyReq->getProtocol() == "socks5") {
++      // The control connection has already resolved the host locally
++      // and cached the result.
++      targetAddr = getDownloadEngine()->findCachedIPAddress(
++          host, getRequest()->getPort());
++      if (targetAddr.empty() && !util::isNumericHost(host)) {
++        throw DL_RETRY_EX(fmt("No resolved address of %s", host.c_str()));
++      }
++    }
++    socksHandshake_ = make_unique<Socks5Handshake>(proxyReq->getUsername(),
++                                                   proxyReq->getPassword(),
++                                                   host, targetAddr, pasvPort_);
++  }
++  switch (socksHandshake_->advance(*dataSocket_)) {
++  case Socks5Handshake::WANT_READ:
++    disableWriteCheckSocket();
++    setReadCheckSocket(dataSocket_);
++    return false;
++  case Socks5Handshake::WANT_WRITE:
++    disableReadCheckSocket();
++    setWriteCheckSocket(dataSocket_);
++    return false;
++  case Socks5Handshake::DONE:
++    break;
++  }
++  socksHandshake_.reset();
++  sequence_ = SEQ_SEND_REST_PASV;
++  return true;
++}
++
+ bool FtpNegotiationCommand::sendTunnelRequest()
+ {
+   if (http_->sendBufferIsEmpty()) {
+@@ -976,6 +1018,8 @@ bool FtpNegotiationCommand::processSequence(
+     return sendTunnelRequest();
+   case SEQ_RECV_TUNNEL_RESPONSE:
+     return recvTunnelResponse();
++  case SEQ_SOCKS_HANDSHAKE:
++    return socksHandshake();
+   case SEQ_SEND_REST_PASV:
+     return sendRestPasv(segment);
+   case SEQ_SEND_REST:
+diff --git a/src/FtpNegotiationCommand.h b/src/FtpNegotiationCommand.h
+index 0eea8e84..69b90fcf 100644
+--- a/src/FtpNegotiationCommand.h
++++ b/src/FtpNegotiationCommand.h
+@@ -44,6 +44,7 @@ namespace aria2 {
+ class FtpConnection;
+ class SocketCore;
+ class HttpConnection;
++class Socks5Handshake;
+ 
+ class FtpNegotiationCommand : public AbstractCommand {
+ public:
+@@ -79,6 +80,7 @@ public:
+     SEQ_RESOLVE_PROXY,
+     SEQ_SEND_TUNNEL_REQUEST,
+     SEQ_RECV_TUNNEL_RESPONSE,
++    SEQ_SOCKS_HANDSHAKE,
+     SEQ_SEND_REST_PASV,
+     SEQ_SEND_REST,
+     SEQ_RECV_REST,
+@@ -126,6 +128,7 @@ private:
+   bool resolveProxy();
+   bool sendTunnelRequest();
+   bool recvTunnelResponse();
++  bool socksHandshake();
+   bool sendRest(const std::shared_ptr<Segment>& segment);
+   bool sendRestPasv(const std::shared_ptr<Segment>& segment);
+   bool recvRest(const std::shared_ptr<Segment>& segment);
+@@ -148,6 +151,8 @@ private:
+   std::shared_ptr<FtpConnection> ftp_;
+   // For tunneling
+   std::shared_ptr<HttpConnection> http_;
++  // For tunneling through a SOCKS5 proxy
++  std::unique_ptr<Socks5Handshake> socksHandshake_;
+   // Port number in PASV/EPSV response
+   uint16_t pasvPort_;
+   // Resolved address for proxy
+diff --git a/src/FtpSocksProxyConnectChain.h b/src/FtpSocksProxyConnectChain.h
+new file mode 100644
+index 00000000..90b196e9
+--- /dev/null
++++ b/src/FtpSocksProxyConnectChain.h
+@@ -0,0 +1,80 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#ifndef FTP_SOCKS_PROXY_CONNECT_CHAIN_H
++#define FTP_SOCKS_PROXY_CONNECT_CHAIN_H
++
++#include "ControlChain.h"
++#include "ConnectCommand.h"
++#include "DownloadEngine.h"
++#include "SocksProxyCommand.h"
++#include "FtpNegotiationCommand.h"
++#ifdef HAVE_LIBSSH2
++#  include "SftpNegotiationCommand.h"
++#endif // HAVE_LIBSSH2
++
++namespace aria2 {
++
++struct FtpSocksProxyConnectChain : public ControlChain<ConnectCommand*> {
++  FtpSocksProxyConnectChain() {}
++  virtual ~FtpSocksProxyConnectChain() {}
++  virtual int run(ConnectCommand* t, DownloadEngine* e) CXX11_OVERRIDE
++  {
++    auto c = make_unique<SocksProxyCommand>(
++        t->getCuid(), t->getRequest(), t->getFileEntry(), t->getRequestGroup(),
++        e, t->getProxyRequest(), t->getSocket(),
++        [](SocksProxyCommand* cmd) -> std::unique_ptr<Command> {
++#ifdef HAVE_LIBSSH2
++          if (cmd->getRequest()->getProtocol() == "sftp") {
++            return make_unique<SftpNegotiationCommand>(
++                cmd->getCuid(), cmd->getRequest(), cmd->getFileEntry(),
++                cmd->getRequestGroup(), cmd->getDownloadEngine(),
++                cmd->getSocket());
++          }
++#endif // HAVE_LIBSSH2
++          return make_unique<FtpNegotiationCommand>(
++              cmd->getCuid(), cmd->getRequest(), cmd->getFileEntry(),
++              cmd->getRequestGroup(), cmd->getDownloadEngine(),
++              cmd->getSocket());
++        });
++    c->setStatus(Command::STATUS_ONESHOT_REALTIME);
++    e->setNoWait(true);
++    e->addCommand(std::move(c));
++    return 0;
++  }
++};
++
++} // namespace aria2
++
++#endif // FTP_SOCKS_PROXY_CONNECT_CHAIN_H
+diff --git a/src/HttpInitiateConnectionCommand.cc b/src/HttpInitiateConnectionCommand.cc
+index 74c74b7a..62089163 100644
+--- a/src/HttpInitiateConnectionCommand.cc
++++ b/src/HttpInitiateConnectionCommand.cc
+@@ -55,6 +55,7 @@
+ #include "ConnectCommand.h"
+ #include "HttpRequestConnectChain.h"
+ #include "HttpProxyRequestConnectChain.h"
++#include "HttpSocksProxyConnectChain.h"
+ 
+ namespace aria2 {
+ 
+@@ -78,7 +79,11 @@ std::unique_ptr<Command> HttpInitiateConnectionCommand::createNextCommand(
+         getDownloadEngine()->popPooledSocket(
+             getRequest()->getHost(), getRequest()->getPort(),
+             proxyRequest->getHost(), proxyRequest->getPort());
+-    std::string proxyMethod = resolveProxyMethod(getRequest()->getProtocol());
++    bool isSocksProxy =
++        SocksProxyCommand::isSocksProtocol(proxyRequest->getProtocol());
++    std::string proxyMethod = isSocksProxy
++                                  ? V_TUNNEL
++                                  : resolveProxyMethod(getRequest()->getProtocol());
+     if (!pooledSocket) {
+       A2_LOG_INFO(fmt(MSG_CONNECTING_TO_SERVER, getCuid(), addr.c_str(), port));
+       createSocket();
+@@ -88,7 +93,10 @@ std::unique_ptr<Command> HttpInitiateConnectionCommand::createNextCommand(
+       auto c = make_unique<ConnectCommand>(
+           getCuid(), getRequest(), proxyRequest, getFileEntry(),
+           getRequestGroup(), getDownloadEngine(), getSocket());
+-      if (proxyMethod == V_TUNNEL) {
++      if (isSocksProxy) {
++        c->setControlChain(std::make_shared<HttpSocksProxyConnectChain>());
++      }
++      else if (proxyMethod == V_TUNNEL) {
+         c->setControlChain(std::make_shared<HttpProxyRequestConnectChain>());
+       }
+       else if (proxyMethod == V_GET) {
+diff --git a/src/HttpSocksProxyConnectChain.h b/src/HttpSocksProxyConnectChain.h
+new file mode 100644
+index 00000000..6411b6e8
+--- /dev/null
++++ b/src/HttpSocksProxyConnectChain.h
+@@ -0,0 +1,75 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#ifndef HTTP_SOCKS_PROXY_CONNECT_CHAIN_H
++#define HTTP_SOCKS_PROXY_CONNECT_CHAIN_H
++
++#include "ControlChain.h"
++#include "ConnectCommand.h"
++#include "DownloadEngine.h"
++#include "SocksProxyCommand.h"
++#include "HttpRequestCommand.h"
++#include "HttpConnection.h"
++#include "SocketRecvBuffer.h"
++
++namespace aria2 {
++
++struct HttpSocksProxyConnectChain : public ControlChain<ConnectCommand*> {
++  HttpSocksProxyConnectChain() {}
++  virtual ~HttpSocksProxyConnectChain() {}
++  virtual int run(ConnectCommand* t, DownloadEngine* e) CXX11_OVERRIDE
++  {
++    auto c = make_unique<SocksProxyCommand>(
++        t->getCuid(), t->getRequest(), t->getFileEntry(), t->getRequestGroup(),
++        e, t->getProxyRequest(), t->getSocket(),
++        [](SocksProxyCommand* cmd) -> std::unique_ptr<Command> {
++          auto socketRecvBuffer =
++              std::make_shared<SocketRecvBuffer>(cmd->getSocket());
++          auto httpConnection = std::make_shared<HttpConnection>(
++              cmd->getCuid(), cmd->getSocket(), socketRecvBuffer);
++          return make_unique<HttpRequestCommand>(
++              cmd->getCuid(), cmd->getRequest(), cmd->getFileEntry(),
++              cmd->getRequestGroup(), httpConnection,
++              cmd->getDownloadEngine(), cmd->getSocket());
++        });
++    c->setStatus(Command::STATUS_ONESHOT_REALTIME);
++    e->setNoWait(true);
++    e->addCommand(std::move(c));
++    return 0;
++  }
++};
++
++} // namespace aria2
++
++#endif // HTTP_SOCKS_PROXY_CONNECT_CHAIN_H
+diff --git a/src/Makefile.am b/src/Makefile.am
+index cb6e3b7c..1bfd1cd9 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -110,6 +110,7 @@ SRCS =  \
+ 	FtpTunnelRequestCommand.cc FtpTunnelRequestCommand.h\
+ 	FtpTunnelRequestConnectChain.h\
+ 	FtpTunnelResponseCommand.cc FtpTunnelResponseCommand.h\
++	FtpSocksProxyConnectChain.h\
+ 	GenericParser.h\
+ 	GeomStreamPieceSelector.cc GeomStreamPieceSelector.h\
+ 	GroupId.cc GroupId.h\
+@@ -126,6 +127,7 @@ SRCS =  \
+ 	HttpProxyRequestCommand.cc HttpProxyRequestCommand.h\
+ 	HttpProxyRequestConnectChain.h\
+ 	HttpProxyResponseCommand.cc HttpProxyResponseCommand.h\
++	HttpSocksProxyConnectChain.h\
+ 	HttpRequest.cc HttpRequest.h\
+ 	HttpRequestCommand.cc HttpRequestCommand.h\
+ 	HttpRequestConnectChain.h\
+@@ -228,6 +230,8 @@ SRCS =  \
+ 	SingleFileAllocationIterator.cc SingleFileAllocationIterator.h\
+ 	SingletonHolder.h\
+ 	SinkStreamFilter.cc SinkStreamFilter.h\
++	Socks5Handshake.cc Socks5Handshake.h\
++	SocksProxyCommand.cc SocksProxyCommand.h\
+ 	SocketBuffer.cc SocketBuffer.h\
+ 	SocketCore.cc SocketCore.h\
+ 	SocketRecvBuffer.cc SocketRecvBuffer.h\
+diff --git a/src/OptionHandlerImpl.cc b/src/OptionHandlerImpl.cc
+index 6214e84b..62d39450 100644
+--- a/src/OptionHandlerImpl.cc
++++ b/src/OptionHandlerImpl.cc
+@@ -506,7 +506,14 @@ void HttpProxyOptionHandler::parseArg(Option& option,
+   }
+   else {
+     std::string uri;
+-    if (util::startsWith(optarg, "http://") ||
++    const char* socksScheme = nullptr;
++    if (util::startsWith(optarg, "socks5://")) {
++      socksScheme = "socks5";
++    }
++    else if (util::startsWith(optarg, "socks5h://")) {
++      socksScheme = "socks5h";
++    }
++    if (socksScheme || util::startsWith(optarg, "http://") ||
+         util::startsWith(optarg, "https://") ||
+         util::startsWith(optarg, "ftp://")) {
+       uri = optarg;
+@@ -519,14 +526,19 @@ void HttpProxyOptionHandler::parseArg(Option& option,
+     if (!uri::parse(us, uri)) {
+       throw DL_ABORT_EX(_("unrecognized proxy format"));
+     }
+-    us.protocol = "http";
++    if (socksScheme) {
++      us.protocol = socksScheme;
++    }
++    else {
++      us.protocol = "http";
++    }
+     option.put(pref_, uri::construct(us));
+   }
+ }
+ 
+ std::string HttpProxyOptionHandler::createPossibleValuesString() const
+ {
+-  return "[http://][USER:PASSWORD@]HOST[:PORT]";
++  return "[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]";
+ }
+ 
+ LocalFilePathOptionHandler::LocalFilePathOptionHandler(
+diff --git a/src/Socks5Handshake.cc b/src/Socks5Handshake.cc
+new file mode 100644
+index 00000000..f09f496f
+--- /dev/null
++++ b/src/Socks5Handshake.cc
+@@ -0,0 +1,291 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#include "Socks5Handshake.h"
++
++#include <algorithm>
++
++#include "SocketCore.h"
++#include "a2netcompat.h"
++#include "DlRetryEx.h"
++#include "DlAbortEx.h"
++#include "fmt.h"
++#include "util.h"
++
++namespace aria2 {
++
++namespace {
++const uint8_t SOCKS5_VERSION = 0x05;
++const uint8_t SOCKS5_AUTH_NONE = 0x00;
++const uint8_t SOCKS5_AUTH_USERPASS = 0x02;
++const uint8_t SOCKS5_CMD_CONNECT = 0x01;
++const uint8_t SOCKS5_ATYP_IPV4 = 0x01;
++const uint8_t SOCKS5_ATYP_DOMAINNAME = 0x03;
++const uint8_t SOCKS5_ATYP_IPV6 = 0x04;
++const uint8_t SOCKS5_USERPASS_VERSION = 0x01;
++const uint8_t SOCKS5_REPLY_SUCCEEDED = 0x00;
++} // namespace
++
++Socks5Handshake::Socks5Handshake(const std::string& user,
++                                 const std::string& passwd,
++                                 const std::string& targetHost,
++                                 const std::string& targetAddr,
++                                 uint16_t targetPort)
++    : user_(user),
++      passwd_(passwd),
++      targetHost_(targetHost),
++      targetAddr_(targetAddr),
++      targetPort_(targetPort),
++      state_(GREETING_SEND),
++      sendOffset_(0),
++      recvNeeded_(0)
++{
++  if (targetAddr_.empty() && util::isNumericHost(targetHost_)) {
++    targetAddr_ = targetHost_;
++  }
++  if (user_.size() > 255 || passwd_.size() > 255) {
++    throw DL_ABORT_EX("SOCKS5 username or password is too long.");
++  }
++  if (targetAddr_.empty() && targetHost_.size() > 255) {
++    throw DL_ABORT_EX("Hostname is too long for SOCKS5 CONNECT.");
++  }
++
++  sendBuf_.push_back(SOCKS5_VERSION);
++  if (user_.empty()) {
++    sendBuf_.push_back(1);
++    sendBuf_.push_back(SOCKS5_AUTH_NONE);
++  }
++  else {
++    sendBuf_.push_back(2);
++    sendBuf_.push_back(SOCKS5_AUTH_NONE);
++    sendBuf_.push_back(SOCKS5_AUTH_USERPASS);
++  }
++}
++
++bool Socks5Handshake::flush(SocketCore& socket)
++{
++  while (sendOffset_ < sendBuf_.size()) {
++    ssize_t written = socket.writeData(sendBuf_.data() + sendOffset_,
++                                       sendBuf_.size() - sendOffset_);
++    if (written == 0) {
++      return false;
++    }
++    sendOffset_ += written;
++  }
++  return true;
++}
++
++bool Socks5Handshake::fill(SocketCore& socket)
++{
++  while (recvBuf_.size() < recvNeeded_) {
++    unsigned char buf[256];
++    size_t len = std::min(sizeof(buf), recvNeeded_ - recvBuf_.size());
++    socket.readData(buf, len);
++    if (len == 0) {
++      if (!socket.wantRead() && !socket.wantWrite()) {
++        throw DL_RETRY_EX("Got EOF from the SOCKS5 proxy.");
++      }
++      return false;
++    }
++    recvBuf_.insert(recvBuf_.end(), buf, buf + len);
++  }
++  return true;
++}
++
++void Socks5Handshake::startRecv(State state, size_t n)
++{
++  state_ = state;
++  recvBuf_.clear();
++  recvNeeded_ = n;
++}
++
++void Socks5Handshake::startSend(State state)
++{
++  state_ = state;
++  sendOffset_ = 0;
++}
++
++void Socks5Handshake::buildConnect()
++{
++  sendBuf_.clear();
++  sendBuf_.push_back(SOCKS5_VERSION);
++  sendBuf_.push_back(SOCKS5_CMD_CONNECT);
++  sendBuf_.push_back(0x00); // RSV
++  unsigned char addr[sizeof(in6_addr)];
++  if (targetAddr_.empty()) {
++    sendBuf_.push_back(SOCKS5_ATYP_DOMAINNAME);
++    sendBuf_.push_back(static_cast<uint8_t>(targetHost_.size()));
++    sendBuf_.insert(sendBuf_.end(), targetHost_.begin(), targetHost_.end());
++  }
++  else if (inetPton(AF_INET, targetAddr_.c_str(), addr) == 0) {
++    sendBuf_.push_back(SOCKS5_ATYP_IPV4);
++    sendBuf_.insert(sendBuf_.end(), addr, addr + sizeof(in_addr));
++  }
++  else if (inetPton(AF_INET6, targetAddr_.c_str(), addr) == 0) {
++    sendBuf_.push_back(SOCKS5_ATYP_IPV6);
++    sendBuf_.insert(sendBuf_.end(), addr, addr + sizeof(in6_addr));
++  }
++  else {
++    throw DL_ABORT_EX(
++        fmt("Invalid address for SOCKS5 CONNECT: %s", targetAddr_.c_str()));
++  }
++  sendBuf_.push_back(static_cast<uint8_t>((targetPort_ >> 8) & 0xFF));
++  sendBuf_.push_back(static_cast<uint8_t>(targetPort_ & 0xFF));
++  startSend(CONNECT_SEND);
++}
++
++void Socks5Handshake::processGreetingResponse()
++{
++  if (recvBuf_[0] != SOCKS5_VERSION) {
++    throw DL_ABORT_EX("SOCKS5 proxy returned unexpected version.");
++  }
++  uint8_t method = recvBuf_[1];
++  if (method == SOCKS5_AUTH_USERPASS && !user_.empty()) {
++    sendBuf_.clear();
++    sendBuf_.push_back(SOCKS5_USERPASS_VERSION);
++    sendBuf_.push_back(static_cast<uint8_t>(user_.size()));
++    sendBuf_.insert(sendBuf_.end(), user_.begin(), user_.end());
++    sendBuf_.push_back(static_cast<uint8_t>(passwd_.size()));
++    sendBuf_.insert(sendBuf_.end(), passwd_.begin(), passwd_.end());
++    startSend(AUTH_SEND);
++  }
++  else if (method == SOCKS5_AUTH_NONE) {
++    buildConnect();
++  }
++  else {
++    throw DL_ABORT_EX("SOCKS5 proxy requires unsupported authentication.");
++  }
++}
++
++void Socks5Handshake::processAuthResponse()
++{
++  if (recvBuf_[0] != SOCKS5_USERPASS_VERSION || recvBuf_[1] != 0x00) {
++    throw DL_RETRY_EX("SOCKS5 proxy authentication failed.");
++  }
++  buildConnect();
++}
++
++void Socks5Handshake::processConnectHead()
++{
++  if (recvBuf_[0] != SOCKS5_VERSION) {
++    throw DL_ABORT_EX("SOCKS5 proxy returned unexpected version in reply.");
++  }
++  if (recvBuf_[1] != SOCKS5_REPLY_SUCCEEDED) {
++    throw DL_RETRY_EX(
++        fmt("SOCKS5 proxy connect failed with status 0x%02x.", recvBuf_[1]));
++  }
++  // BND.ADDR and BND.PORT follow.
++  switch (recvBuf_[3]) {
++  case SOCKS5_ATYP_IPV4:
++    startRecv(CONNECT_RECV_TAIL, 4 + 2);
++    break;
++  case SOCKS5_ATYP_IPV6:
++    startRecv(CONNECT_RECV_TAIL, 16 + 2);
++    break;
++  case SOCKS5_ATYP_DOMAINNAME:
++    startRecv(CONNECT_RECV_DOMAIN_LEN, 1);
++    break;
++  default:
++    throw DL_ABORT_EX("SOCKS5 proxy returned unknown address type.");
++  }
++}
++
++Socks5Handshake::Status Socks5Handshake::advance(SocketCore& socket)
++{
++  for (;;) {
++    switch (state_) {
++    case GREETING_SEND:
++      if (!flush(socket)) {
++        return WANT_WRITE;
++      }
++      startRecv(GREETING_RECV, 2);
++      break;
++
++    case GREETING_RECV:
++      if (!fill(socket)) {
++        return WANT_READ;
++      }
++      processGreetingResponse();
++      break;
++
++    case AUTH_SEND:
++      if (!flush(socket)) {
++        return WANT_WRITE;
++      }
++      startRecv(AUTH_RECV, 2);
++      break;
++
++    case AUTH_RECV:
++      if (!fill(socket)) {
++        return WANT_READ;
++      }
++      processAuthResponse();
++      break;
++
++    case CONNECT_SEND:
++      if (!flush(socket)) {
++        return WANT_WRITE;
++      }
++      startRecv(CONNECT_RECV_HEAD, 4);
++      break;
++
++    case CONNECT_RECV_HEAD:
++      if (!fill(socket)) {
++        return WANT_READ;
++      }
++      processConnectHead();
++      break;
++
++    case CONNECT_RECV_DOMAIN_LEN:
++      if (!fill(socket)) {
++        return WANT_READ;
++      }
++      // BND.ADDR (domain name) and BND.PORT follow.
++      startRecv(CONNECT_RECV_TAIL, recvBuf_[0] + 2);
++      break;
++
++    case CONNECT_RECV_TAIL:
++      if (!fill(socket)) {
++        return WANT_READ;
++      }
++      state_ = FINISHED;
++      break;
++
++    case FINISHED:
++      return DONE;
++    }
++  }
++}
++
++} // namespace aria2
+diff --git a/src/Socks5Handshake.h b/src/Socks5Handshake.h
+new file mode 100644
+index 00000000..2890fe53
+--- /dev/null
++++ b/src/Socks5Handshake.h
+@@ -0,0 +1,113 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#ifndef D_SOCKS5_HANDSHAKE_H
++#define D_SOCKS5_HANDSHAKE_H
++
++#include "common.h"
++
++#include <string>
++#include <vector>
++
++namespace aria2 {
++
++class SocketCore;
++
++// Non-blocking client side of the SOCKS5 handshake (RFC 1928, with
++// the username/password sub-negotiation of RFC 1929) that asks the
++// proxy to CONNECT to the given target.  It reads exactly the bytes
++// it needs, so no data sent by the target after the tunnel is
++// established is consumed.
++class Socks5Handshake {
++public:
++  enum Status {
++    // The handshake needs the socket to become readable.
++    WANT_READ,
++    // The handshake needs the socket to become writable.
++    WANT_WRITE,
++    // The tunnel has been established.
++    DONE
++  };
++
++  // If targetAddr is a numeric address, it is sent as ATYP IPv4/IPv6
++  // (the target was resolved locally, "socks5" scheme).  Otherwise
++  // targetHost is sent as ATYP DOMAINNAME and the proxy resolves it
++  // ("socks5h" scheme).  A numeric targetHost is always sent as an
++  // address.  If user is empty, the username/password authentication
++  // is not offered.
++  Socks5Handshake(const std::string& user, const std::string& passwd,
++                  const std::string& targetHost, const std::string& targetAddr,
++                  uint16_t targetPort);
++
++  // Makes as much progress as possible without blocking.
++  Status advance(SocketCore& socket);
++
++private:
++  enum State {
++    GREETING_SEND,
++    GREETING_RECV,
++    AUTH_SEND,
++    AUTH_RECV,
++    CONNECT_SEND,
++    CONNECT_RECV_HEAD,
++    CONNECT_RECV_DOMAIN_LEN,
++    CONNECT_RECV_TAIL,
++    FINISHED
++  };
++
++  bool flush(SocketCore& socket);
++  // Reads until recvBuf_ holds recvNeeded_ bytes.
++  bool fill(SocketCore& socket);
++  void startRecv(State state, size_t n);
++  void startSend(State state);
++  void buildConnect();
++  void processGreetingResponse();
++  void processAuthResponse();
++  void processConnectHead();
++
++  std::string user_;
++  std::string passwd_;
++  std::string targetHost_;
++  std::string targetAddr_;
++  uint16_t targetPort_;
++  State state_;
++  std::vector<unsigned char> sendBuf_;
++  size_t sendOffset_;
++  std::vector<unsigned char> recvBuf_;
++  size_t recvNeeded_;
++};
++
++} // namespace aria2
++
++#endif // D_SOCKS5_HANDSHAKE_H
+diff --git a/src/SocksProxyCommand.cc b/src/SocksProxyCommand.cc
+new file mode 100644
+index 00000000..44bbed7f
+--- /dev/null
++++ b/src/SocksProxyCommand.cc
+@@ -0,0 +1,128 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#include "SocksProxyCommand.h"
++
++#include "Request.h"
++#include "DownloadEngine.h"
++#include "RequestGroup.h"
++#include "Option.h"
++#include "prefs.h"
++#include "SocketCore.h"
++#include "Socks5Handshake.h"
++#include "fmt.h"
++#include "LogFactory.h"
++#include "Logger.h"
++
++namespace aria2 {
++
++SocksProxyCommand::SocksProxyCommand(
++    cuid_t cuid, const std::shared_ptr<Request>& req,
++    const std::shared_ptr<FileEntry>& fileEntry, RequestGroup* requestGroup,
++    DownloadEngine* e, const std::shared_ptr<Request>& proxyRequest,
++    const std::shared_ptr<SocketCore>& s, NextCommandFactory nextCommandFactory)
++    : AbstractCommand(cuid, req, fileEntry, requestGroup, e, s),
++      proxyRequest_(proxyRequest),
++      nextCommandFactory_(std::move(nextCommandFactory)),
++      state_(proxyRequest->getProtocol() == "socks5" ? SOCKS_RESOLVE
++                                                     : SOCKS_HANDSHAKE)
++{
++  setTimeout(std::chrono::seconds(getOption()->getAsInt(PREF_CONNECT_TIMEOUT)));
++  disableReadCheckSocket();
++  if (state_ == SOCKS_RESOLVE) {
++    // Resolve the target host locally before talking to the proxy.
++    disableWriteCheckSocket();
++  }
++  else {
++    setWriteCheckSocket(getSocket());
++  }
++}
++
++SocksProxyCommand::~SocksProxyCommand() = default;
++
++bool SocksProxyCommand::isSocksProtocol(const std::string& protocol)
++{
++  return protocol == "socks5" || protocol == "socks5h";
++}
++
++bool SocksProxyCommand::executeInternal()
++{
++  if (state_ == SOCKS_RESOLVE) {
++    std::vector<std::string> addrs;
++    targetAddr_ = resolveHostname(addrs, getRequest()->getHost(),
++                                  getRequest()->getPort());
++    if (targetAddr_.empty()) {
++      addCommandSelf();
++      return false;
++    }
++    state_ = SOCKS_HANDSHAKE;
++  }
++
++  if (!handshake_) {
++    handshake_ = make_unique<Socks5Handshake>(
++        proxyRequest_->getUsername(), proxyRequest_->getPassword(),
++        getRequest()->getHost(), targetAddr_, getRequest()->getPort());
++    A2_LOG_INFO(fmt(
++        "CUID#%" PRId64 " - SOCKS5 CONNECT to %s:%d via proxy %s:%d", getCuid(),
++        targetAddr_.empty() ? getRequest()->getHost().c_str()
++                            : targetAddr_.c_str(),
++        getRequest()->getPort(), proxyRequest_->getHost().c_str(),
++        proxyRequest_->getPort()));
++  }
++
++  switch (handshake_->advance(*getSocket())) {
++  case Socks5Handshake::WANT_READ:
++    disableWriteCheckSocket();
++    setReadCheckSocket(getSocket());
++    addCommandSelf();
++    return false;
++
++  case Socks5Handshake::WANT_WRITE:
++    disableReadCheckSocket();
++    setWriteCheckSocket(getSocket());
++    addCommandSelf();
++    return false;
++
++  case Socks5Handshake::DONE:
++    break;
++  }
++
++  A2_LOG_INFO(fmt("CUID#%" PRId64 " - SOCKS5 tunnel established to %s:%d",
++                  getCuid(), getRequest()->getHost().c_str(),
++                  getRequest()->getPort()));
++  getDownloadEngine()->addCommand(nextCommandFactory_(this));
++  return true;
++}
++
++} // namespace aria2
+diff --git a/src/SocksProxyCommand.h b/src/SocksProxyCommand.h
+new file mode 100644
+index 00000000..b450f126
+--- /dev/null
++++ b/src/SocksProxyCommand.h
+@@ -0,0 +1,86 @@
++/* <!-- copyright */
++/*
++ * aria2 - The high speed download utility
++ *
++ * Copyright (C) 2006 Tatsuhiro Tsujikawa
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ *
++ * In addition, as a special exception, the copyright holders give
++ * permission to link the code of portions of this program with the
++ * OpenSSL library under certain conditions as described in each
++ * individual source file, and distribute linked combinations
++ * including the two.
++ * You must obey the GNU General Public License in all respects
++ * for all of the code used other than OpenSSL.  If you modify
++ * file(s) with this exception, you may extend this exception to your
++ * version of the file(s), but you are not obligated to do so.  If you
++ * do not wish to do so, delete this exception statement from your
++ * version.  If you delete this exception statement from all source
++ * files in the program, then also delete it here.
++ */
++/* copyright --> */
++#ifndef D_SOCKS_PROXY_COMMAND_H
++#define D_SOCKS_PROXY_COMMAND_H
++
++#include "AbstractCommand.h"
++
++#include <string>
++#include <functional>
++
++namespace aria2 {
++
++class Socks5Handshake;
++
++class SocksProxyCommand : public AbstractCommand {
++public:
++  using NextCommandFactory =
++      std::function<std::unique_ptr<Command>(SocksProxyCommand*)>;
++
++  SocksProxyCommand(cuid_t cuid, const std::shared_ptr<Request>& req,
++                    const std::shared_ptr<FileEntry>& fileEntry,
++                    RequestGroup* requestGroup, DownloadEngine* e,
++                    const std::shared_ptr<Request>& proxyRequest,
++                    const std::shared_ptr<SocketCore>& s,
++                    NextCommandFactory nextCommandFactory);
++
++  virtual ~SocksProxyCommand();
++
++  // Returns true if protocol is a SOCKS5 proxy scheme.  "socks5"
++  // resolves the target host locally and sends its IP address to the
++  // proxy, while "socks5h" sends the hostname and lets the proxy
++  // resolve it.
++  static bool isSocksProtocol(const std::string& protocol);
++
++protected:
++  virtual bool executeInternal() CXX11_OVERRIDE;
++
++private:
++  enum State {
++    SOCKS_RESOLVE,
++    SOCKS_HANDSHAKE,
++  };
++
++  std::shared_ptr<Request> proxyRequest_;
++  NextCommandFactory nextCommandFactory_;
++  State state_;
++  // Target address resolved locally; used only for "socks5".
++  std::string targetAddr_;
++  std::unique_ptr<Socks5Handshake> handshake_;
++};
++
++} // namespace aria2
++
++#endif // D_SOCKS_PROXY_COMMAND_H
+diff --git a/test/Makefile.am b/test/Makefile.am
+index 49c6211f..a4cd5732 100644
+--- a/test/Makefile.am
++++ b/test/Makefile.am
+@@ -27,6 +27,7 @@ aria2c_SOURCES = AllTest.cc\
+ 	NetrcAuthResolverTest.cc\
+ 	DefaultAuthResolverTest.cc\
+ 	OptionHandlerTest.cc\
++	Socks5HandshakeTest.cc\
+ 	SegmentManTest.cc\
+ 	BitfieldManTest.cc\
+ 	NetrcTest.cc\
+diff --git a/test/OptionHandlerTest.cc b/test/OptionHandlerTest.cc
+index 69bde95d..c448d37a 100644
+--- a/test/OptionHandlerTest.cc
++++ b/test/OptionHandlerTest.cc
+@@ -285,7 +285,7 @@ void OptionHandlerTest::testHttpProxyOptionHandler()
+   }
+   catch (Exception& e) {
+   }
+-  CPPUNIT_ASSERT_EQUAL(std::string("[http://][USER:PASSWORD@]HOST[:PORT]"),
++  CPPUNIT_ASSERT_EQUAL(std::string("[http://|socks5://|socks5h://][USER:PASSWORD@]HOST[:PORT]"),
+                        handler.createPossibleValuesString());
+ 
+   handler.parse(option, "http://user%40:passwd%40@proxy:8080");
+@@ -295,6 +295,26 @@ void OptionHandlerTest::testHttpProxyOptionHandler()
+   handler.parse(option, "http://[::1]:8080");
+   CPPUNIT_ASSERT_EQUAL(std::string("http://[::1]:8080/"),
+                        option.get(PREF_HTTP_PROXY));
++
++  handler.parse(option, "socks5://proxy:9050");
++  CPPUNIT_ASSERT_EQUAL(std::string("socks5://proxy:9050/"),
++                       option.get(PREF_HTTP_PROXY));
++
++  handler.parse(option, "socks5://proxy:1080");
++  CPPUNIT_ASSERT_EQUAL(std::string("socks5://proxy/"),
++                       option.get(PREF_HTTP_PROXY));
++
++  handler.parse(option, "socks5h://proxy:9050");
++  CPPUNIT_ASSERT_EQUAL(std::string("socks5h://proxy:9050/"),
++                       option.get(PREF_HTTP_PROXY));
++
++  handler.parse(option, "socks5h://proxy:1080");
++  CPPUNIT_ASSERT_EQUAL(std::string("socks5h://proxy/"),
++                       option.get(PREF_HTTP_PROXY));
++
++  handler.parse(option, "socks5://user:pass@proxy:9050");
++  CPPUNIT_ASSERT_EQUAL(std::string("socks5://user:pass@proxy:9050/"),
++                       option.get(PREF_HTTP_PROXY));
+ }
+ 
+ void OptionHandlerTest::testDeprecatedOptionHandler()
+diff --git a/test/Socks5HandshakeTest.cc b/test/Socks5HandshakeTest.cc
+new file mode 100644
+index 00000000..d55de873
+--- /dev/null
++++ b/test/Socks5HandshakeTest.cc
+@@ -0,0 +1,220 @@
++#include "Socks5Handshake.h"
++
++#include <memory>
++#include <string>
++#include <vector>
++
++#include <cppunit/extensions/HelperMacros.h>
++
++#include "SocketCore.h"
++#include "RecoverableException.h"
++
++namespace aria2 {
++
++namespace {
++using Bytes = std::vector<unsigned char>;
++
++Bytes bytes(const std::string& s) { return Bytes(s.begin(), s.end()); }
++
++Bytes concat(Bytes a, const Bytes& b)
++{
++  a.insert(a.end(), b.begin(), b.end());
++  return a;
++}
++} // namespace
++
++class Socks5HandshakeTest : public CppUnit::TestFixture {
++  CPPUNIT_TEST_SUITE(Socks5HandshakeTest);
++  CPPUNIT_TEST(testNoAuthDomain);
++  CPPUNIT_TEST(testNumericHostIsSentAsAddress);
++  CPPUNIT_TEST(testAuthIPv4);
++  CPPUNIT_TEST(testIPv6);
++  CPPUNIT_TEST(testAuthFailure);
++  CPPUNIT_TEST(testConnectFailure);
++  CPPUNIT_TEST(testUnsupportedAuth);
++  CPPUNIT_TEST(testEOF);
++  CPPUNIT_TEST(testHostnameTooLong);
++  CPPUNIT_TEST_SUITE_END();
++
++  std::shared_ptr<SocketCore> client_;
++  // Plays the proxy.
++  std::shared_ptr<SocketCore> proxy_;
++
++public:
++  void setUp()
++  {
++    SocketCore listener;
++    listener.bind(0);
++    listener.beginListen();
++    client_ = std::make_shared<SocketCore>();
++    client_->establishConnection("127.0.0.1", listener.getAddrInfo().port);
++    CPPUNIT_ASSERT(listener.isReadable(5));
++    proxy_ = listener.acceptConnection();
++    proxy_->setBlockingMode();
++  }
++
++  void tearDown()
++  {
++    client_.reset();
++    proxy_.reset();
++  }
++
++  // Advances the handshake until it needs to read or is done.
++  Socks5Handshake::Status pump(Socks5Handshake& h)
++  {
++    for (int i = 0; i < 100; ++i) {
++      auto st = h.advance(*client_);
++      if (st == Socks5Handshake::WANT_WRITE) {
++        client_->isWritable(1);
++        continue;
++      }
++      return st;
++    }
++    CPPUNIT_FAIL("handshake did not make progress");
++    return Socks5Handshake::DONE;
++  }
++
++  // Receives the next n bytes sent by the client.
++  Bytes proxyRecv(size_t n)
++  {
++    Bytes res;
++    while (res.size() < n) {
++      CPPUNIT_ASSERT(proxy_->isReadable(5));
++      unsigned char buf[64];
++      size_t len = std::min(sizeof(buf), n - res.size());
++      proxy_->readData(buf, len);
++      CPPUNIT_ASSERT(len > 0);
++      res.insert(res.end(), buf, buf + len);
++    }
++    return res;
++  }
++
++  void proxySend(const Bytes& b)
++  {
++    CPPUNIT_ASSERT_EQUAL((ssize_t)b.size(),
++                         proxy_->writeData(b.data(), b.size()));
++    CPPUNIT_ASSERT(client_->isReadable(5));
++  }
++
++  // Runs the handshake up to the CONNECT request and returns it.
++  // method is the method selected by the proxy.
++  Bytes toConnect(Socks5Handshake& h, const Bytes& greeting, uint8_t method)
++  {
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    CPPUNIT_ASSERT(greeting == proxyRecv(greeting.size()));
++    proxySend({0x05, method});
++    return Bytes();
++  }
++
++  void testNoAuthDomain()
++  {
++    Socks5Handshake h("", "", "example.org", "", 8080);
++    toConnect(h, {0x05, 0x01, 0x00}, 0x00);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    CPPUNIT_ASSERT(concat({0x05, 0x01, 0x00, 0x03, 11},
++                          concat(bytes("example.org"), {0x1f, 0x90})) ==
++                   proxyRecv(4 + 1 + 11 + 2));
++    proxySend({0x05, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0});
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::DONE, (int)pump(h));
++  }
++
++  void testNumericHostIsSentAsAddress()
++  {
++    Socks5Handshake h("", "", "127.0.0.1", "", 80);
++    toConnect(h, {0x05, 0x01, 0x00}, 0x00);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    CPPUNIT_ASSERT((Bytes{0x05, 0x01, 0x00, 0x01, 127, 0, 0, 1, 0x00, 0x50}) ==
++                   proxyRecv(10));
++  }
++
++  void testAuthIPv4()
++  {
++    Socks5Handshake h("test", "secret", "example.org", "192.0.2.1", 1080);
++    toConnect(h, {0x05, 0x02, 0x00, 0x02}, 0x02);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    CPPUNIT_ASSERT(concat({0x01, 4}, concat(bytes("test"),
++                                            concat({6}, bytes("secret")))) ==
++                   proxyRecv(2 + 4 + 1 + 6));
++    proxySend({0x01, 0x00});
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    // The locally resolved address is sent instead of the hostname.
++    CPPUNIT_ASSERT((Bytes{0x05, 0x01, 0x00, 0x01, 192, 0, 2, 1, 0x04, 0x38}) ==
++                   proxyRecv(10));
++    // BND.ADDR as a domain name, followed by data of the target that
++    // must not be consumed by the handshake.
++    proxySend({0x05, 0x00, 0x00, 0x03, 3, 'a', 'b', 'c', 0, 80, 'X'});
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::DONE, (int)pump(h));
++    char c;
++    size_t len = 1;
++    client_->readData(&c, len);
++    CPPUNIT_ASSERT_EQUAL((size_t)1, len);
++    CPPUNIT_ASSERT_EQUAL('X', c);
++  }
++
++  void testIPv6()
++  {
++    Socks5Handshake h("", "", "example.org", "::1", 443);
++    toConnect(h, {0x05, 0x01, 0x00}, 0x00);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    Bytes expected{0x05, 0x01, 0x00, 0x04};
++    expected.insert(expected.end(), 15, 0);
++    expected.push_back(1);
++    expected.push_back(0x01);
++    expected.push_back(0xbb);
++    CPPUNIT_ASSERT(expected == proxyRecv(4 + 16 + 2));
++    Bytes reply{0x05, 0x00, 0x00, 0x04};
++    reply.insert(reply.end(), 18, 0);
++    proxySend(reply);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::DONE, (int)pump(h));
++  }
++
++  void testAuthFailure()
++  {
++    Socks5Handshake h("test", "bad", "example.org", "", 80);
++    toConnect(h, {0x05, 0x02, 0x00, 0x02}, 0x02);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    proxyRecv(2 + 4 + 1 + 3);
++    proxySend({0x01, 0x01});
++    CPPUNIT_ASSERT_THROW(pump(h), RecoverableException);
++  }
++
++  void testConnectFailure()
++  {
++    Socks5Handshake h("", "", "example.org", "", 80);
++    toConnect(h, {0x05, 0x01, 0x00}, 0x00);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    proxyRecv(4 + 1 + 11 + 2);
++    // Connection refused
++    proxySend({0x05, 0x05, 0x00, 0x01, 0, 0, 0, 0, 0, 0});
++    CPPUNIT_ASSERT_THROW(pump(h), RecoverableException);
++  }
++
++  void testUnsupportedAuth()
++  {
++    Socks5Handshake h("", "", "example.org", "", 80);
++    toConnect(h, {0x05, 0x01, 0x00}, 0xff);
++    CPPUNIT_ASSERT_THROW(pump(h), RecoverableException);
++  }
++
++  void testEOF()
++  {
++    Socks5Handshake h("", "", "example.org", "", 80);
++    CPPUNIT_ASSERT_EQUAL((int)Socks5Handshake::WANT_READ, (int)pump(h));
++    proxyRecv(3);
++    proxy_.reset();
++    CPPUNIT_ASSERT(client_->isReadable(5));
++    CPPUNIT_ASSERT_THROW(pump(h), RecoverableException);
++  }
++
++  void testHostnameTooLong()
++  {
++    CPPUNIT_ASSERT_THROW(Socks5Handshake("", "", std::string(256, 'a'), "", 80),
++                         RecoverableException);
++    // It is fine if the address is sent instead of the hostname.
++    Socks5Handshake("", "", std::string(256, 'a'), "192.0.2.1", 80);
++  }
++};
++
++CPPUNIT_TEST_SUITE_REGISTRATION(Socks5HandshakeTest);
++
++} // namespace aria2
+-- 
+2.56.1
+

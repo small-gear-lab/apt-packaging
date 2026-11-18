@@ -1,0 +1,18 @@
+Description: Fix build with gettext 0.23
+Author: Santiago Vila <sanvila@debian.org>
+Bug-Debian: https://bugs.debian.org/1092222
+Forwarded: not-needed
+Last-Update: 2025-01-13
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -736,8 +736,8 @@
+ fi
+ 
+ # Checks for library functions.
++AM_GNU_GETTEXT_REQUIRE_VERSION([0.21])
+ AM_GNU_GETTEXT([external])
+-AM_GNU_GETTEXT_VERSION([0.18])
+ AC_FUNC_ERROR_AT_LINE
+ AC_PROG_GCC_TRADITIONAL
+ 

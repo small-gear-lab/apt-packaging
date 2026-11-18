@@ -1,0 +1,6 @@
+Version: 5
+
+Template: Github
+Dversionmangle: s/\+debian\d*$//
+Owner: aria2
+Project: aria2
