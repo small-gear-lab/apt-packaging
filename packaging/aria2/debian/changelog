@@ -1,3 +1,11 @@
+aria2 (1.37.0+debian-4+smallgearlab2) resolute; urgency=medium
+
+  * Packaging metadata only, no change to the built binaries: the maintainer
+    line of this changelog and the Author/Origin of socks5-proxy.patch now use
+    the public noreply address and no longer name the fork's URL.
+
+ -- marie-222 <289302950+marie-222@users.noreply.github.com>  Wed, 18 Nov 2026 16:55:52 +0900
+
 aria2 (1.37.0+debian-4+smallgearlab1) resolute; urgency=medium
 
   * Add SOCKS5 proxy support (debian/patches/socks5-proxy.patch, from
