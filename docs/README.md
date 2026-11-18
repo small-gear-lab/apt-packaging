@@ -55,12 +55,17 @@ drops the older one from the repo.
 ## Signing key
 
 - ed25519, sign only, no expiry, protected by a passphrase.
-- Fingerprint `35CC 622C 3422 5A22 4B16 DC97 B500 B351 8F99 1E1D`, uid `small-gear-lab apt repository`
+- Fingerprint `533D C1F8 54C1 1155 A03B  F31F 08EB 1DD2 05FF 1685`, uid `small-gear-lab apt repository`
   (the keygrip is in `~/.config/sgl-reprepro.conf`; `gpg --list-secret-keys --with-keygrip` shows it).
 - The passphrase and the revocation certificate are kept in a password manager, never in this repository.
-  Which entry to read is set in `~/.config/sgl-reprepro.conf`.
-- If the key is lost: make a new one, re-export `pubkeys/small-gear-lab.asc`, and run
-  `sgl-reprepro export`.
+  Which entry to read is set in `~/.config/sgl-reprepro.conf`. The certificate is an attachment of the
+  entry (`rbw` cannot read attachments; download it from the web vault).
+- If the key is lost: make a new one, re-export `pubkeys/small-gear-lab.asc`, set `SignWith` in
+  `repos/small-gear-lab/conf/distributions` and the keygrip in `~/.config/sgl-reprepro.conf`, run
+  `sgl-reprepro export`, and revoke the old key with its certificate. The passphrase can stay the same.
+  Keep a backup of the secret key itself (`gpg --export-secret-keys`), not only of the passphrase.
+- History: the key `35CC 622C …1E1D` was lost with the GnuPG home directory and replaced on 2026-11-18.
+  It is revoked; the current `pubkeys/small-gear-lab.asc` holds only the new key.
 
 How the unattended signing works:
 
