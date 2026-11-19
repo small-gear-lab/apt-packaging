@@ -1,3 +1,24 @@
+kitty (0.51.0-1~smallgearlab2) resolute; urgency=medium
+
+  * 0017 is back, rebuilt on top of upstream's IME cursor: the code point at
+    the pre-edit cursor (the start of the clause being converted) is drawn in
+    reverse video, as the moved beam cursor alone is hard to see.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Thu, 19 Nov 2026 11:30:00 +0900
+
+kitty (0.51.0-1~smallgearlab1) resolute; urgency=medium
+
+  * New upstream release 0.51.0 (signed tarball verified against Kovid
+    Goyal's key).
+  * Dropped 0017 (mark the code point at the IME cursor in reverse video):
+    upstream now passes the input method's cursor through to the pre-edit
+    text and moves the terminal cursor there (IME: Move cursor position
+    within pre-edit text), which covers the same need.
+  * 0015 redone for the new toolchain line (go1.26.11); 0016 and
+    0018-0020 apply unchanged.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Thu, 19 Nov 2026 09:00:00 +0900
+
 kitty (0.50.0-1~smallgearlab3) resolute; urgency=medium
 
   * 0020: new local option sgl__program_status_seen (app or *, then idle, keep

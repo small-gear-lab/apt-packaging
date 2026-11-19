@@ -20,7 +20,7 @@ Comment: Symbols Nerd Font Mono and the license documents that go with it. They 
  packaging: the build takes the font out of kitty's own signed release archive and fetches the documents of
  the Nerd Fonts release it comes from; NERD-FONTS-VERSION, installed next to the font, names that release.
  The font gathers glyphs from several icon sets. Nerd Fonts' license audit (NERD-FONTS-LICENSE-AUDIT.md,
- installed next to the font) lists their licenses. For Nerd Fonts v3.3.0: Codicons and Font Awesome are
+ installed next to the font) lists their licenses. For Nerd Fonts v3.5.1 (the same glyph-set table as v3.3.0): Codicons and Font Awesome are
  CC-BY-4.0; Material Design Icons are Apache-2.0; Pomicons and Weather Icons are OFL-1.1; Devicons, Font
  Awesome Extension, IEC Power Symbols, Seti-UI (modified), Octicons and Powerline Extra Symbols are MIT;
  Powerline Symbols are under a "Free License" and Font Logos are listed as unlicensed. The SIL OFL 1.1 text

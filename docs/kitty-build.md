@@ -1,10 +1,10 @@
-# Building kitty 0.50.0 for Ubuntu 26.04
+# Building kitty 0.51.0 for Ubuntu 26.04
 
-Ubuntu ships 0.45.0 (plus ESM security updates). We rebuild upstream 0.50.0 from the
+Ubuntu ships 0.45.0 (plus ESM security updates). We rebuild upstream 0.51.0 from the
 Ubuntu source package's `debian/` directory.
 
-Working tree: `~/.cache/kitty-dl/deb/build/kitty-0.50.0/`
-Downloads: `~/.cache/kitty-dl/v0.50.0/` (source, prebuilt archive, signatures)
+Working tree: `~/.cache/kitty-dl/deb/build/kitty-0.51.0/`
+Downloads: `~/.cache/kitty-dl/v0.51.0/` (source, prebuilt archive, signatures)
 
 Packages produced: `kitty`, `kitty-doc`, `kitty-terminfo`, `kitty-shell-integration`.
 
@@ -139,7 +139,7 @@ then `build`. The packaging is not under git yet.
 |---|---|
 | `0015-remove-toolchain-directive.patch` | drops the `toolchain` line of `go.mod` (the Debian patch for it no longer applied; the line names a new toolchain in each release, so redo the patch for every version) |
 | `0016-ime-preedit-straight-underline-no-italic.patch` | 0.49 draws IME pre-edit text italic with a dashed underline (hard-coded in `screen_draw_overlay_line`, no option). Now: straight underline, no italic |
-| `0017-ime-preedit-mark-cursor-cell.patch` | draws the one code point at the IME cursor in reverse video during conversion |
+| `0017-ime-preedit-mark-cursor-cell.patch` | draws the one code point at the IME cursor in reverse video during conversion (on top of upstream's IME cursor since 0.51.0) |
 | `0018-program-status-seen-becomes-idle.patch` | OSC 7501 (program status): when the user has seen a done/error **root** record (key press, focus) it becomes `idle` instead of being removed. Non-root records are still removed. Test added in `kitty_tests/program_status.py` |
 | `0019-sgl-program-status-symbol-option.patch` | new local option `sgl__program_status_symbol state U+codepoint color [Font Family]` (the `sgl__` prefix marks options that are not upstream). `{tab.program_status}` returns the colored glyph; a given font family is mapped like `symbol_map` (`fonts/render.py: create_symbol_map`, applied after `symbol_map`) |
 
@@ -157,23 +157,24 @@ Notes on 0018/0019:
   enough (the icons disappeared once after the font file was overwritten under a running kitty).
 - A running kitty keeps its old code in memory. After `apt upgrade`, every window of the old process must be closed (check `ps -o lstart -C kitty`) before the new patches show.
 
-Notes on 0017:
+`0017-ime-preedit-mark-cursor-cell.patch` was rewritten for 0.51.0 (`~smallgearlab2`). Upstream 0.51.0 ("IME: Move
+cursor position within pre-edit text", kitty issue 10807) now does the plumbing the old patch did: the input method's
+cursor goes through `GLFWkeyevent.has_ime_cursor` / `ime_cursor` (code points), `screen_update_overlay_text(...,
+preedit_cursor)` and `OverlayLine.preedit_cursor`, and `text_input_done` reports a cursor-only change. It moves the
+terminal cursor there, but with `cursor_shape beam` that was harder to see than the reverse-video mark of 0.50 (checked
+by eye in a real session), so the patch is now only the drawing part: the code point at `overlay_line.preedit_cursor`
+is drawn in reverse video in `screen_draw_overlay_line` (`kitty/screen.c`, one hunk). A cursor at or after the end of
+the text (typing kana) or -1 marks nothing. With fcitx5 + Mozc the cursor is the start of the selected clause, the end
+of the clause is not sent, so only its first character is marked.
 
-- Under Wayland text-input-v3 the input method sends `cursor_begin` and `cursor_end`. With fcitx5 + Mozc
-  both are always equal (checked with `kitty --debug-input`): while typing kana the cursor is at the end of
-  the text, during conversion it is the start of the selected clause (0, 6, ...). The end of the clause is
-  not sent, so only the first character of the clause can be marked, not the whole clause.
-- kitty dropped this value, and also dropped events where only the cursor moved (`text_input_done` skipped
-  unchanged text). The patch passes it through `GLFWkeyevent` (`ime_cursor_valid`, `ime_cursor_begin`),
-  `screen_update_overlay_text(..., cursor_byte_offset)` and `OverlayLine.mark_pos`. The byte offset is
-  converted to a code point index; offsets at or after the end of the text mark nothing.
-- `kitty/glfw-wrapper.h` is a generated copy of the struct in `glfw/glfw3.h`; both are patched by hand and
-  must stay identical.
-- Checked: it builds and starts without errors. Not checked by me: how it looks while converting (needs a
-  real IME session).
-- Files touched: `glfw/glfw3.h`, `glfw/wl_text_input.c`, `kitty/glfw-wrapper.h`, `kitty/keys.c`,
-  `kitty/screen.c`, `kitty/screen.h`. Re-check them on every kitty update.
-- Blinking text exists in 0.49 (`sgr.blink`), so a blinking mark would also be possible.
+## Redoing the patches for 0.51.0
+
+`0015` (`toolchain go1.26.11`) was redone; `0016`, `0018`-`0020` applied with offsets only (`program_status.py`,
+`options/types.py` and `options/parse.py` are unchanged upstream, so the by-hand edits of 0019/0020 still match
+the generator; only docstrings of `definition.py` changed). The Symbols Nerd Font moved from v3.3.0 to v3.5.1 (the
+glyph-set table of `license-audit.md` is the same, only the list of other fonts grew; `debian/copyright` says v3.5.1).
+`build.sh` finds the Nerd Fonts release with `gh`: when its token has expired it reports "no Nerd Fonts release
+among the latest 30", which is misleading; check `gh auth status` first.
 
 ## Redoing the patches for 0.50.0
 

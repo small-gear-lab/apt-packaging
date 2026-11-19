@@ -1,12 +1,12 @@
-Index: kitty-0.50.0/go.mod
+Index: kitty-0.51.0/go.mod
 ===================================================================
---- kitty-0.50.0.orig/go.mod
-+++ kitty-0.50.0/go.mod
+--- kitty-0.51.0.orig/go.mod
++++ kitty-0.51.0/go.mod
 @@ -2,7 +2,6 @@ module github.com/kovidgoyal/kitty
  
  go 1.26.0
  
--toolchain go1.26.10
+-toolchain go1.26.11
  
  require (
  	github.com/ALTree/bigfloat v0.3.0
