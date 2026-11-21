@@ -6,7 +6,7 @@ not a general-purpose tool.
 
 | Where | What |
 |---|---|
-| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `mozc-build.md`, `neovim-build.md`) |
+| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, `aria2-build.md`) |
 | `packaging/` | one directory per package: `build.sh` and the `debian/` tree it builds from |
 | `pubkeys/` | the public key that signs the repository |
 | `repos/small-gear-lab/conf/` | reprepro's configuration (the generated `db/`, `dists/` and `pool/` are not kept) |
@@ -15,7 +15,8 @@ not a general-purpose tool.
 
 Packages built here:
 
-- `kitty` 0.49.2 with a few IME patches, and the `kitty-slang-compiler` it needs to build
+- `kitty` 0.51.0 with a few IME patches and a local status-symbol option, and the `kitty-slang-compiler` it needs to
+  build; `fonts-sgl-status-icons` is the font that option uses
 - `curl` 8.23.0 with HTTP/3 (ngtcp2 + nghttp3), in two flavours: `curl-openssl` on top of Ubuntu's OpenSSL 3.5, and
   `curl-rustls` with Rustls (Encrypted Client Hello, `--capath` and `--pinnedpubkey`; no NTLM). `curl` and `libcurl4t64`
   are metapackages that pick one of them. The flavours are in `resolute-testing`.
@@ -31,7 +32,16 @@ Packages built here:
   packages are older than what the 0.12 runtime queries expect)
 - `neovide` 0.17.2 and `tree-sitter-cli` 0.27.2: repacks of the official release binaries, checked against the sha256
   digest GitHub reports for each asset. `tree-sitter-cli` has Ubuntu's package name with a newer version, because
-  nvim-treesitter needs 0.26.1 or later to build parsers
+  nvim-treesitter needs 0.26.1 or later to build parsers. `resolute-testing` also has a `neovide` built from source
+  with a patch series (see `docs/neovide-patched.md`)
+- `aria2` 1.37.0 with SOCKS5 proxy support (Ubuntu's packaging plus one patch)
+- `libssl4`: only the OpenSSL 4 runtime libraries, which Ubuntu 26.04 does not have (needed by the mainline kernel headers)
+- `clang`, `llvm`, `lld`, `lldb` and the other unversioned LLVM names: `llvm-defaults` meta packages that follow LLVM 24
+  (apt.llvm.org's still point at 23). In `resolute-testing`
+- `gemini-api-cli` 0.4.6: repack of the official `gemini-api` release binary
+- fonts: `fonts-shippori-mincho`, `storytold-craft-fonts` (a metapackage) and `fonts-sgl-status-icons`
+- `storytold-photocraft` and `photocraft-cli`: the PhotoCraft image editor and its CLI, built from the upstream tag. In
+  `resolute-testing`
 
 Start with `docs/README.md`.
 

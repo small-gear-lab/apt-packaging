@@ -11,13 +11,13 @@ Packages produced: `kitty`, `kitty-doc`, `kitty-terminfo`, `kitty-shell-integrat
 ## Recipe
 
 1. Source: `apt source kitty` (deb-src is enabled) for `debian/`; the upstream
-   `kitty-0.49.2.tar.xz` from the GitHub release for the code. Signatures are made
+   `kitty-0.51.0.tar.xz` from the GitHub release for the code. Signatures are made
    by Kovid Goyal's key, <https://calibre-ebook.com/signatures/kovid.gpg>.
 2. Copy `debian/` into the upstream tree. Debian patches that no longer apply were dropped
    (tests, a docs image, "ignore vendor dir", "remove toolchain"); "toolchain" was re-done as
    `0015-remove-toolchain-directive.patch`. The gopsutil v4 path patch was dropped too,
    because it rewrites imports for Debian's `-dev` packages only.
-3. Go dependencies: 0.49.2 needs modules that Ubuntu does not package (`kovidgoyal/*`,
+3. Go dependencies: kitty needs modules that Ubuntu does not package (`kovidgoyal/*`,
    `emmansun/base64`, `hako/durafmt`, `sgtdi/fswatcher`), so `go mod vendor` is run in the
    tree (`GOFLAGS=-mod=mod GOTOOLCHAIN=local go mod vendor`).
 4. `debian/rules` was rewritten from GOPATH mode to modules: `GOFLAGS=-mod=vendor`,
@@ -34,7 +34,7 @@ Build dependencies to install by hand: `libsimde-dev kitty-slang-compiler python
 ## Build command
 
 ```
-cd ~/.cache/kitty-dl/deb/build/kitty-0.49.2
+cd ~/.cache/kitty-dl/deb/build/kitty-0.51.0
 env -i HOME="$HOME" LOGNAME="$USER" USER="$USER" LANG=C.UTF-8 TERM="$TERM" \
     PATH=/usr/sbin:/usr/bin:/sbin:/bin \
     PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig \
@@ -68,7 +68,7 @@ package, normalise `objdump -d` (addresses, immediates) instead of hashing `.tex
 | `go list -m` failed: inconsistent vendoring | `vendor/` was removed or stale | rerun `go mod vendor`; build with `-nc` |
 | docs: `No module named 'sphinx_design'` | new docs dependency in 0.49 | `python3-sphinx-design` |
 | docs: kitten binary not found | docs look at `kitty/launcher/kitten` | `KITTEN_EXE_FOR_DOCS` in `debian/rules` |
-| **new windows never open**: `Failed to compile GLSL vertex shader ... GL_ARB_shading_language_420pack` | 0.49.2 needs slang 2026.14.1 (`bypy/sources.json`); Ubuntu's `slang-compiler` is 2026.1.1 and emits GLSL that Mesa rejects | build with the slangc of the official 2026.14.1 release, packaged as `kitty-slang-compiler` (its `slangc` finds its libraries through `$ORIGIN/../lib`; never set `LD_LIBRARY_PATH` for the whole build, the bundled old libexpat breaks the launcher link) |
+| **new windows never open**: `Failed to compile GLSL vertex shader ... GL_ARB_shading_language_420pack` | kitty (0.49.2 to 0.51.0) needs slang 2026.14.1 (`bypy/sources.json`); Ubuntu's `slang-compiler` is 2026.1.1 and emits GLSL that Mesa rejects | build with the slangc of the official 2026.14.1 release, packaged as `kitty-slang-compiler` (its `slangc` finds its libraries through `$ORIGIN/../lib`; never set `LD_LIBRARY_PATH` for the whole build, the bundled old libexpat breaks the launcher link) |
 
 ## kitty-slang-compiler
 
@@ -106,7 +106,7 @@ smoke test. Output: `~/.cache/kitty-dl/slang-build/<version>/out/`.
 - If Ubuntu gets slang 2026.14.1 or newer, drop this package and depend on `slang-compiler` again.
 
 Custom user shaders use whichever `slangc` is on `PATH` (the Suggested `slang-compiler`), which
-may be too old for kitty 0.49.
+may be too old for kitty 0.51.
 
 ## Updating to a new upstream version
 
@@ -202,8 +202,8 @@ Not checked by me: the look of the cursor-cell mark in a real IME session under 
 Ubuntu's source package kept a copy of `SymbolsNerdFontMono-Regular.ttf` in `debian/external/fonts/`
 (Nerd Fonts v3.2.1). Here the font is not stored: `build.sh build` (or `build.sh fetch-font`) takes it out of
 kitty's own binary release archive, `kitty-<version>-x86_64.txz`, after checking its signature against Kovid
-Goyal's key. So the font is whatever Nerd Fonts version upstream kitty ships for that release (v3.3.0 for kitty
-0.49.2), and a new kitty version brings its own font without anything to update here. Nothing of it stays in
+Goyal's key. So the font is whatever Nerd Fonts version upstream kitty ships for that release (v3.5.1 for kitty
+0.51.0, v3.3.0 for 0.49.2), and a new kitty version brings its own font without anything to update here. Nothing of it stays in
 `debian/external/fonts/`.
 
 The license documents follow the font the same way. The font in kitty's archive carries no version, so `build.sh`

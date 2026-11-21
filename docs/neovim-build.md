@@ -1,6 +1,7 @@
 # neovim / neovide
 
-Both are in `resolute` (normal suite). Installed 2026-11-10: neovim 0.12.6, neovide 0.17.2.
+Both are in `resolute` (normal suite). Installed 2026-11-10: neovim 0.12.6, neovide 0.17.2. `resolute-testing` also
+has a neovide built from source with patches: see `neovide-patched.md`.
 
 ## neovim (`packaging/neovim/`)
 

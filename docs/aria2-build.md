@@ -6,7 +6,7 @@ Ubuntu package.
 
 | Suite | Version | What |
 |---|---|---|
-| `resolute` (priority 500) | `1.37.0+debian-4+smallgearlab1` | `aria2`, `libaria2-0`, `libaria2-0-dev`. `apt upgrade` takes it. |
+| `resolute` (priority 500) | `1.37.0+debian-4+smallgearlab2` | `aria2`, `libaria2-0`, `libaria2-0-dev`. `apt upgrade` takes it. |
 
 Installed on this machine on 2026-11-18, replacing a hand-built `~/.local/bin/aria2c` (symlink into
 `~/work/forks/aria2`) that had stopped starting after the 24.04 -> 26.04 upgrade (`libxml2.so.2` is `libxml2.so.16`

@@ -26,7 +26,9 @@ To reproduce the setup elsewhere, see `../system/README.md` (the files that live
 
 - `resolute` (Suite `stable`): normal. `apt upgrade` takes packages from here.
 - `resolute-testing` (Suite `testing`): `NotAutomatic` + `ButAutomaticUpgrades`, so it is opt-in
-  (`apt install pkg/resolute-testing`). Currently empty.
+  (`apt install pkg/resolute-testing`). It holds the two curl flavours, `librustls-quic` and `ngtcp2-crypto-rustls`,
+  the LLVM meta packages, the patched `neovide` and `storytold-photocraft` (`sgl-reprepro list resolute-testing`
+  shows the current list).
 
 The names follow Ubuntu's own `resolute-updates` / `resolute-backports` style, because
 reprepro allows only one Codename per distribution stanza.
@@ -81,9 +83,9 @@ the login is stale: `rbw purge`, then `rbw login`.
 
 ## Version rules
 
-- Our rebuilds carry the suffix `~smallgearlab<N>`, e.g. `0.49.2-1~smallgearlab2`.
-- `~` sorts below nothing, so `0.49.2-1~smallgearlab2` is older than a future official
-  `0.49.2-1`; the official package takes over by itself.
+- Our rebuilds carry the suffix `~smallgearlab<N>`, e.g. `0.51.0-1~smallgearlab2`.
+- `~` sorts below nothing, so `0.51.0-1~smallgearlab2` is older than a future official
+  `0.51.0-1`; the official package takes over by itself.
 - Do not put a hyphen in the suffix. The Debian revision is whatever follows the last hyphen.
 - Bump `<N>` whenever the content changes. Re-including the same version with different
   content will not upgrade anything that is already installed.
@@ -95,7 +97,9 @@ Ubuntu Pro ESM is pinned at 510, the archive and this repo are at 500, so withou
 the older ESM kitty won over our newer one. The pin file lowers ESM to 500 for the kitty
 packages only; `Package: *` is deliberately not used.
 
-See also: `kitty-build.md`, `aria2-build.md` (aria2 with SOCKS5; its version uses `+smallgearlab<N>`, not `~`).
+See also, one build note per package family: `kitty-build.md`, `curl-build.md`, `rustls-build.md`,
+`openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, and `aria2-build.md` (aria2 with
+SOCKS5; its version uses `+smallgearlab<N>`, not `~`).
 
 ## Desktop entries (kitty)
 
