@@ -6,7 +6,7 @@ not a general-purpose tool.
 
 | Where | What |
 |---|---|
-| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, `aria2-build.md`) |
+| `docs/` | how the repository works, and one build note per package family (`kitty-build.md`, `curl-build.md`, `rustls-build.md`, `openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, `aria2-build.md`, `photocraft-build.md`) |
 | `packaging/` | one directory per package: `build.sh` and the `debian/` tree it builds from |
 | `pubkeys/` | the public key that signs the repository |
 | `repos/small-gear-lab/conf/` | reprepro's configuration (the generated `db/`, `dists/` and `pool/` are not kept) |

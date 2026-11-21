@@ -98,7 +98,7 @@ the older ESM kitty won over our newer one. The pin file lowers ESM to 500 for t
 packages only; `Package: *` is deliberately not used.
 
 See also, one build note per package family: `kitty-build.md`, `curl-build.md`, `rustls-build.md`,
-`openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, and `aria2-build.md` (aria2 with
+`openssl4-build.md`, `mozc-build.md`, `neovim-build.md`, `neovide-patched.md`, `photocraft-build.md`, and `aria2-build.md` (aria2 with
 SOCKS5; its version uses `+smallgearlab<N>`, not `~`).
 
 ## Desktop entries (kitty)

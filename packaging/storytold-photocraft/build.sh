@@ -27,7 +27,7 @@ for a in "$@"; do
 done
 set -- ${args[@]+"${args[@]}"}
 cmd=${1:-}
-version=${2:-0.20.1}
+version=${2:-0.23.1}
 dl=$HOME/.cache/photocraft-dl
 orig=$dl/orig/photocraft-$version.tar.gz
 vend=$dl/orig/photocraft-$version-vendor.tar.xz
