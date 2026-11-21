@@ -3,3 +3,9 @@
 Package: kitty kitty-doc kitty-terminfo kitty-shell-integration
 Pin: release o=UbuntuESMApps
 Pin-Priority: 500
+
+# The unversioned LLVM names come from our own meta packages (LLVM 24, packaging/llvm-defaults), not from apt.llvm.org's llvm-defaults (still 23).
+# 700 = the apt.llvm.org pin, so that the two compete on version only: the official one takes over once its version is higher.
+Package: clang clang-format libclang-dev llvm llvm-dev llvm-runtime lld lldb
+Pin: release o=small-gear-lab
+Pin-Priority: 700

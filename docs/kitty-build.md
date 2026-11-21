@@ -226,7 +226,7 @@ read its `LICENSE` and `license-audit.md` before shipping the font.
 ## The Go modules linked into kitten
 
 `kitten` (and the other Go programs) is linked statically with the modules that `go mod vendor` put in `vendor/`
-(36 for 0.49.2) and with the Go standard library, so the package has to carry their licenses and copyright
+(35 for 0.51.0, 36 for 0.49.2) and with the Go standard library, so the package has to carry their licenses and copyright
 notices. Ubuntu's `debian/copyright` listed only the handful of modules it had vendored for 0.45.0.
 
 `build.sh build` runs `gen-vendor-licenses.py` on the work tree: for every module in `vendor/modules.txt` it

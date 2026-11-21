@@ -11,7 +11,7 @@ at the destinations below.
 | `sgl-reprepro.conf.example` | `~/.config/sgl-reprepro.conf` (mode 600) | which key and which password-manager entry to use; **not** in this repository |
 | `gnupg/gpg-agent.conf` | `~/.gnupg/gpg-agent.conf` | `allow-preset-passphrase`, so that gpg-preset-passphrase can seed the cache |
 | `apt/small-gear-lab.sources.in` | `/etc/apt/sources.list.d/small-gear-lab.sources` | the repository as an apt source (`@HOME@` is replaced) |
-| `apt/preferences.d/small-gear-lab` | `/etc/apt/preferences.d/small-gear-lab` | lowers Ubuntu ESM's pin for the kitty packages only |
+| `apt/preferences.d/small-gear-lab` | `/etc/apt/preferences.d/small-gear-lab` | lowers Ubuntu ESM's pin for the kitty packages only, and raises the LLVM meta packages to 700 |
 
 ## Installing
 
