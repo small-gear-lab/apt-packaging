@@ -120,7 +120,7 @@ def parse_groups(expr):
     An option with an exception (`Apache-2.0 WITH LLVM-exception`) is left out of a choice, since the same expression
     offers a plain option too (`... OR Apache-2.0 OR MIT`): we are free to pick one without the exception. When no
     option without `WITH` is left in a group, None."""
-    expr = re.sub(r"(?<=\w)/(?=\w)", " OR ", expr)        # old style `A/B` means a choice
+    expr = re.sub(r"(?<=\w)\s*/\s*(?=\w)", " OR ", expr)  # old style `A/B` or `A / B` means a choice
     groups = []
     for g in split_top(expr.strip(), " AND "):
         g = g.strip()
@@ -197,6 +197,19 @@ for (name, version), (expr, kind) in sorted(linked.items()):
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(body + "\n")
             files = list(files) + [dest]
+    # Ubuntu-font-1.0: epaint_default_fonts says "... AND Ubuntu-font-1.0" and keeps the Ubuntu Font Licence in
+    # fonts/UFL.txt, a name that is not a license-file name. Take the text from there and copy the file along.
+    ufl = d / "fonts" / "UFL.txt"
+    if "Ubuntu-font-1.0" in (pkg.get("license") or expr) and "Ubuntu-font-1.0" not in texts and ufl.is_file():
+        body = ufl.read_text(errors="replace")
+        texts["Ubuntu-font-1.0"] = "\n".join(l for l in body.splitlines() if not re.match(r"^\s*copyright\b", l, re.I))
+        for h in holders(body):
+            if h not in held:
+                held.append(h)
+        dest = out_docs / ("%s-%s" % (name, version)) / "fonts" / "UFL.txt"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ufl, dest)
+        files = list(files) + [dest]
     crates.append((d, pkg, pkg.get("license") or expr, kind, files, held or list(pkg.get("authors", [])) or ["see Cargo.toml of the crate"]))
 
 available = set(texts) | defined | set(COMMON)

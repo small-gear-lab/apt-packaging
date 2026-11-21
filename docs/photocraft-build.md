@@ -63,9 +63,10 @@ from PhotoCraft:
 - The bundled third-party material is another set: Source Sans 3, Source Serif 4, Inter and JetBrains Mono (the
   CLI needs the first three), Lucide icons, Indic hyphenation patterns and the PDF backend's data (Foxit fonts,
   Adobe CMaps, a CGATS ICC profile; `licenses/pdf-backend/`). `debian/copyright` and the `.docs` files list them.
-- `gen-crate-licenses.py` here also reads the old `A / B` choice in a crate's license field (`fnv`) and takes the
-  Ubuntu Font Licence from `fonts/UFL.txt` of `epaint_default_fonts`. PhotoCraft's copy of the script does not have
-  these two changes yet, because none of its crates needed them.
+- `gen-crate-licenses.py` is the same script in both directories (only the names differ). VectorCraft's build was the
+  first to need two things that it now has in both: it reads the old `A / B` choice in a crate's license field
+  (`fnv`), and it takes the Ubuntu Font Licence from `fonts/UFL.txt` of `epaint_default_fonts`. Run on PhotoCraft's
+  0.23.1 tree, the changed script writes the same `debian/copyright` and `vendor-licenses/` as before.
 
 The editor window and `vectorcraft-cli` were checked by converting an SVG to PDF with the packaged CLI; the editor
 window itself was not started.
