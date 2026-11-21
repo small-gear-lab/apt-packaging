@@ -48,3 +48,24 @@ dictionaries), compare upstream's `NOTICE` and `ATTRIBUTION.md` with `debian/cop
 
 Upstream releases often (0.20.1 to 0.23.1 took about a week), and the GitHub release notes are lists of pull requests;
 `gh release list -R storytold/photocraft` shows what is new.
+
+## storytold-vectorcraft: the same recipe for VectorCraft
+
+VectorCraft (https://github.com/storytold/vectorcraft, a vector illustration editor from the same organisation) is
+packaged in `packaging/storytold-vectorcraft/` as a copy of this one, with the same two packages
+(`storytold-vectorcraft`, `storytold-vectorcraft-cli`), the same `build.sh fetch` / `build` and the same four places to
+change for a new version (`photocraft.1` is `vectorcraft.1` there). It builds in `~/.cache/vectorcraft-dl/`. What differs
+from PhotoCraft:
+
+- The CLI has no example that writes man pages and shell completions, so `debian/vectorcraft-cli.1` is written by
+  hand and there are no completions. Check it against `vectorcraft-cli --help` after an upgrade.
+- HEIC/HEIF is a default feature of `vectorcraft-engine`, so the build passes no `--features heif`.
+- The bundled third-party material is another set: Source Sans 3, Source Serif 4, Inter and JetBrains Mono (the
+  CLI needs the first three), Lucide icons, Indic hyphenation patterns and the PDF backend's data (Foxit fonts,
+  Adobe CMaps, a CGATS ICC profile; `licenses/pdf-backend/`). `debian/copyright` and the `.docs` files list them.
+- `gen-crate-licenses.py` here also reads the old `A / B` choice in a crate's license field (`fnv`) and takes the
+  Ubuntu Font Licence from `fonts/UFL.txt` of `epaint_default_fonts`. PhotoCraft's copy of the script does not have
+  these two changes yet, because none of its crates needed them.
+
+The editor window and `vectorcraft-cli` were checked by converting an SVG to PDF with the packaged CLI; the editor
+window itself was not started.

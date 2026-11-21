@@ -42,6 +42,8 @@ Packages built here:
 - fonts: `fonts-shippori-mincho`, `storytold-craft-fonts` (a metapackage) and `fonts-sgl-status-icons`
 - `storytold-photocraft` and `photocraft-cli`: the PhotoCraft image editor and its CLI, built from the upstream tag. In
   `resolute-testing`
+- `storytold-vectorcraft` and `vectorcraft-cli`: the VectorCraft vector illustration editor and its CLI, built the same
+  way and split the same way. In `resolute-testing`
 
 Start with `docs/README.md`.
 

@@ -1,0 +1,8 @@
+debian/vendor-licenses
+ATTRIBUTION.md
+assets/fonts/OFL-Inter.txt
+assets/fonts/OFL-SourceSans3.txt
+assets/fonts/OFL-SourceSerif4.txt
+licenses/pdf-backend/hayro-interpret/assets/LICENSE_FOXIT
+licenses/pdf-backend/hayro-interpret/assets/CGATS_LICENSE.txt
+licenses/pdf-backend/hayro-cmap/LICENSE.txt

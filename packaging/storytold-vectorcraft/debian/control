@@ -1,0 +1,64 @@
+Source: storytold-vectorcraft
+Section: graphics
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+# cargo and rustc are not listed: this is built with the builder's own rustup toolchain (see build.sh),
+# which dpkg's dependency check cannot see.
+Build-Depends: debhelper-compat (= 13),
+               pkgconf,
+               libxkbcommon-dev,
+               libwayland-dev,
+               libx11-dev,
+               libxi-dev,
+               libxrandr-dev,
+               libgl1-mesa-dev,
+               libgtk-3-dev,
+Standards-Version: 4.7.3
+Homepage: https://getartcraft.com/apps/vectorcraft
+Rules-Requires-Root: no
+
+Package: storytold-vectorcraft
+Architecture: amd64
+# Windowing (X11/Wayland, xkbcommon) and the GPU (Vulkan, EGL/GL) are loaded at run time with dlopen, so
+# dpkg-shlibdeps cannot see them: they are listed here, as upstream's nfpm.yaml does for its own .deb.
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         libxkbcommon0,
+         libxkbcommon-x11-0,
+         libwayland-client0,
+         libx11-6,
+         libx11-xcb1,
+         libxcb1,
+         libxcursor1,
+         libxi6,
+         libvulkan1 | libegl1,
+Recommends: storytold-vectorcraft-cli (= ${binary:Version}),
+            storytold-craft-fonts,
+            mesa-vulkan-drivers,
+            libegl-mesa0,
+            xdg-desktop-portal,
+Description: open-source vector illustration editor
+ VectorCraft is a native vector illustration app written in Rust. It has pen,
+ shape and brush tools, artboards, type, gradients, symbols and live effects,
+ and opens and saves SVG and PDF. It renders on the GPU (wgpu).
+ .
+ The headless converter, command runner and MCP server that drive the same
+ editor commands are in the storytold-vectorcraft-cli package.
+
+Package: storytold-vectorcraft-cli
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Suggests: storytold-vectorcraft (= ${binary:Version}),
+         storytold-craft-fonts,
+Enhances: storytold-vectorcraft,
+Description: headless command runner and MCP server for the VectorCraft editor
+ vectorcraft-cli runs VectorCraft's editor commands without a window: it
+ converts and inspects vector files (SVG, PDF and the other formats the editor
+ opens), runs the editor's commands from a list or a script and renders the
+ result.
+ .
+ vectorcraft-cli mcp starts an MCP server on standard input and output, so that
+ an AI agent can drive the editor engine, headless or attached to a running
+ VectorCraft window, and see the result as an image. It has no windowing or GPU
+ dependencies. The storytold-vectorcraft package provides the editor window.

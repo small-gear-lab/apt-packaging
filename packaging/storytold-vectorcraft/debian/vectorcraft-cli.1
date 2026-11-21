@@ -1,0 +1,95 @@
+.TH VECTORCRAFT-CLI 1 "November 2026" "VectorCraft 0.24.1" "User Commands"
+.SH NAME
+vectorcraft\-cli \- VectorCraft from the command line: converter, command runner and MCP server
+.SH SYNOPSIS
+.B vectorcraft\-cli
+.RB [ \-\-safe\-mode ]
+.I subcommand
+.RI [ arguments ]
+.br
+.B vectorcraft\-cli mcp
+.RB [ \-\-connect
+.I ADDR
+|
+.BR \-\-headless ]
+.br
+.B vectorcraft\-cli run
+.RB [ \-\-in
+.IR FILE ]
+.RB [ \-\-cmd
+.I ID
+.RB [ \-\-params
+.IR JSON ]
+|
+.B \-\-commands
+.IR FILE | \- ]
+.RB [ \-\-export
+.IR FILE ]
+.br
+.B vectorcraft\-cli convert
+.I IN OUT
+.RI [ options ]
+.br
+.B vectorcraft\-cli info
+.I FILE
+.br
+.B vectorcraft\-cli commands
+.SH DESCRIPTION
+.B vectorcraft\-cli
+runs VectorCraft's editor commands without a window. It needs no windowing system and no GPU.
+.SH SUBCOMMANDS
+.TP
+.B mcp
+Run an MCP server on standard input and output, so that an AI agent can drive the editor engine. By default it
+connects to a running VectorCraft window (started with
+.BR "vectorcraft \-\-control 7979" )
+and falls back to a headless session in this process;
+.B \-\-headless
+asks for the headless session only.
+.BR \-\-automation\-read\-root " and " \-\-automation\-write\-root
+confine the files that the agent's commands read and write to a folder and imply
+.BR \-\-headless .
+.TP
+.B run
+Headless batch: open a file or start a new document, run commands in order and export each
+.B \-\-export
+file in the format its extension picks. Prints one JSON result per step.
+.TP
+.B convert
+Open
+.I IN
+(any readable format) and export
+.I OUT
+in the format its extension picks. Options include
+.BR \-\-scale ,
+.BR \-\-ppi ,
+.BR \-\-artboard ,
+.BR \-\-range ,
+.BR \-\-outline\-text ,
+.B \-\-decimals
+and
+.BR \-\-preserve\-editing .
+.TP
+.B info
+Print a JSON summary of a file: import warnings, title, colour mode, units, artboards, object counts and fonts.
+.TP
+.B commands
+Print the catalogue of editor commands as JSON.
+.TP
+.BR bench ", " perf
+Measure rendering and the performance budgets.
+.SH OPTIONS
+.TP
+.B \-\-safe\-mode
+Run any subcommand without plug-ins.
+.TP
+.BR \-h ", " \-\-help
+Print the full usage, with the lists of readable and writable formats, and exit.
+.SH FILES
+.TP
+.I ~/.config/vectorcraft/
+The settings and the user's folders that the editor shares with the CLI, such as its Fonts folder.
+.SH SEE ALSO
+.BR vectorcraft (1)
+.PP
+https://getartcraft.com/apps/vectorcraft

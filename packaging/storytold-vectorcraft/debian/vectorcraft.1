@@ -1,0 +1,42 @@
+.TH VECTORCRAFT 1 "November 2026" "VectorCraft 0.24.1" "User Commands"
+.SH NAME
+vectorcraft \- open-source vector illustration editor
+.SH SYNOPSIS
+.B vectorcraft
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B vectorcraft
+starts VectorCraft, a native vector illustration app written in Rust. It has pen, shape and brush tools, artboards,
+type, gradients, symbols and live effects, and opens and saves SVG and PDF. Files given on the command line are
+opened as tabs, in the running window when VectorCraft is already running.
+.PP
+Headless work (converting, running commands, the MCP server) is done by
+.BR vectorcraft-cli (1).
+.SH OPTIONS
+.TP
+.B \-\-safe\-mode
+Start without plug-ins: none loads or runs. Plug-ins stay installed.
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.BR \-h ", " \-\-help
+Print the list of all options and exit.
+.PP
+.B vectorcraft \-\-help
+lists the remaining options, such as
+.B \-\-new\-instance
+and
+.BR "\-\-control PORT" ,
+which lets
+.B "vectorcraft-cli mcp"
+attach to the running window.
+.SH FILES
+.TP
+.I ~/.config/vectorcraft/
+Settings (\fIui.json\fR), the user's swatches, graphic styles and fonts, data recovery files and logs.
+.SH SEE ALSO
+.BR vectorcraft-cli (1)
+.PP
+https://getartcraft.com/apps/vectorcraft

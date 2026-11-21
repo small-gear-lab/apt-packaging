@@ -1,0 +1,20 @@
+storytold-vectorcraft (0.24.1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of VectorCraft 0.24.1, an open-source vector illustration
+    app written in Rust (storytold/vectorcraft), from the upstream release tag.
+  * Built offline with the local rustup toolchain from the crates that
+    build.sh vendored.
+  * Two packages, split as storytold-photocraft is: storytold-vectorcraft (the
+    editor window) and storytold-vectorcraft-cli (the headless converter,
+    command runner and MCP server). The packages carry the storytold prefix of
+    their upstream organisation; the programs keep their names
+    (/usr/bin/vectorcraft, /usr/bin/vectorcraft-cli). The CLI has no windowing
+    or GPU dependencies; the editor recommends it. HEIC/HEIF support is built in
+    (a default feature of the engine).
+  * The CLI has no man page generator or shell completions upstream, so its
+    man page is written here (debian/vectorcraft-cli.1).
+  * debian/copyright: gen-crate-licenses.py writes a paragraph for each Rust
+    crate that is linked in, and the .docs files install the license files of
+    those crates and of the bundled fonts, icons and PDF backend data.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Sun, 22 Nov 2026 02:00:00 +0900
