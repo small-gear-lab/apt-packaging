@@ -1,3 +1,13 @@
+kitty (0.51.1-1~smallgearlab1) resolute; urgency=medium
+
+  * New upstream release 0.51.1 (signed tarball verified against Kovid
+    Goyal's key). It fixes command injection through session files and a
+    write outside the target directory through a symlink in the dnd kitten.
+  * 0015 to 0020 apply unchanged (0015: the toolchain line is still
+    go1.26.11).
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 25 Nov 2026 08:00:00 +0900
+
 kitty (0.51.0-1~smallgearlab2) resolute; urgency=medium
 
   * 0017 is back, rebuilt on top of upstream's IME cursor: the code point at

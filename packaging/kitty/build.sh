@@ -33,7 +33,7 @@ for a in "$@"; do
 done
 set -- ${args[@]+"${args[@]}"}
 cmd=${1:-}
-version=${2:-0.49.2}
+version=${2:-0.51.1}
 work=$HOME/.cache/kitty-dl/deb/build/kitty-$version
 
 # The Symbols Nerd Font Mono. Ubuntu's source package carried a copy of it inside debian/ (Nerd Fonts v3.2.1,
