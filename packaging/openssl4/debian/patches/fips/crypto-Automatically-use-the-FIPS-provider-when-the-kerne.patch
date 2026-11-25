@@ -44,9 +44,11 @@ provider.
  create mode 100644 test/recipes/04-test_auto_fips_mode/off
  create mode 100644 test/recipes/04-test_auto_fips_mode/on
 
---- a/crypto/context.c
-+++ b/crypto/context.c
-@@ -260,6 +260,11 @@
+Index: openssl-4.1.0/crypto/context.c
+===================================================================
+--- openssl-4.1.0.orig/crypto/context.c
++++ openssl-4.1.0/crypto/context.c
+@@ -260,6 +260,11 @@ static int context_init(OSSL_LIB_CTX *ct
      ctx->comp_methods = ossl_load_builtin_compressions();
  #endif
  
@@ -58,9 +60,11 @@ provider.
      return 1;
  
  err:
---- a/crypto/provider_core.c
-+++ b/crypto/provider_core.c
-@@ -543,7 +543,7 @@
+Index: openssl-4.1.0/crypto/provider_core.c
+===================================================================
+--- openssl-4.1.0.orig/crypto/provider_core.c
++++ openssl-4.1.0/crypto/provider_core.c
+@@ -544,7 +544,7 @@ OSSL_PROVIDER *ossl_provider_new(OSSL_LI
          int chosen = 0;
  
          /* Check if this is a predefined builtin provider */
@@ -69,7 +73,7 @@ provider.
              if (strcmp(p->name, name) != 0)
                  continue;
              /* These compile-time templates always have NULL parameters */
-@@ -1461,7 +1461,7 @@
+@@ -1462,7 +1462,7 @@ static int provider_activate_fallbacks(s
          return 1;
      }
  
@@ -78,7 +82,7 @@ provider.
          OSSL_PROVIDER *prov = NULL;
          OSSL_PROVIDER_INFO *info = store->provinfo;
          STACK_OF(INFOPAIR) *params = NULL;
-@@ -1513,6 +1513,10 @@
+@@ -1514,6 +1514,10 @@ static int provider_activate_fallbacks(s
      }
  err:
      CRYPTO_THREAD_unlock(store->lock);
@@ -89,9 +93,11 @@ provider.
      return ret;
  }
  
---- a/crypto/provider_local.h
-+++ b/crypto/provider_local.h
-@@ -23,7 +23,7 @@
+Index: openssl-4.1.0/crypto/provider_local.h
+===================================================================
+--- openssl-4.1.0.orig/crypto/provider_local.h
++++ openssl-4.1.0/crypto/provider_local.h
+@@ -26,7 +26,7 @@ typedef struct {
      unsigned int is_fallback : 1;
  } OSSL_PROVIDER_INFO;
  
@@ -100,8 +106,10 @@ provider.
  
  void ossl_provider_info_clear(OSSL_PROVIDER_INFO *info);
  int ossl_provider_info_add_to_store(OSSL_LIB_CTX *libctx,
---- a/crypto/provider_predefined.c
-+++ b/crypto/provider_predefined.c
+Index: openssl-4.1.0/crypto/provider_predefined.c
+===================================================================
+--- openssl-4.1.0.orig/crypto/provider_predefined.c
++++ openssl-4.1.0/crypto/provider_predefined.c
 @@ -9,6 +9,9 @@
  
  #include <openssl/core.h>
@@ -112,7 +120,7 @@ provider.
  
  OSSL_provider_init_fn ossl_default_provider_init;
  OSSL_provider_init_fn ossl_base_provider_init;
-@@ -17,7 +20,7 @@
+@@ -17,7 +20,7 @@ OSSL_provider_init_fn ossl_fips_intern_p
  #ifdef STATIC_LEGACY
  OSSL_provider_init_fn ossl_legacy_provider_init;
  #endif
@@ -121,7 +129,7 @@ provider.
  #ifdef FIPS_MODULE
      { "fips", NULL, ossl_fips_intern_provider_init, NULL, 1 },
  #else
-@@ -30,3 +33,23 @@
+@@ -30,3 +33,23 @@ const OSSL_PROVIDER_INFO ossl_predefined
  #endif
      { NULL, NULL, NULL, NULL, 0 }
  };
@@ -145,9 +153,11 @@ provider.
 +
 +    return providers;
 +}
---- a/doc/man3/EVP_set_default_properties.pod
-+++ b/doc/man3/EVP_set_default_properties.pod
-@@ -39,7 +39,8 @@
+Index: openssl-4.1.0/doc/man3/EVP_set_default_properties.pod
+===================================================================
+--- openssl-4.1.0.orig/doc/man3/EVP_set_default_properties.pod
++++ openssl-4.1.0/doc/man3/EVP_set_default_properties.pod
+@@ -41,7 +41,8 @@ query for the given I<libctx>. It merges
  existing query strings that have been set via EVP_set_default_properties().
  
  EVP_default_properties_is_fips_enabled() indicates if 'fips=yes' is a default
@@ -157,9 +167,11 @@ provider.
  
  =head1 NOTES
  
---- a/doc/man5/config.pod
-+++ b/doc/man5/config.pod
-@@ -287,11 +287,13 @@
+Index: openssl-4.1.0/doc/man5/config.pod
+===================================================================
+--- openssl-4.1.0.orig/doc/man5/config.pod
++++ openssl-4.1.0/doc/man5/config.pod
+@@ -287,11 +287,13 @@ available to the provider.
  
  =head3 Default provider and its activation
  
@@ -176,9 +188,11 @@ provider.
  otherwise it becomes unavailable in openssl. It may make the system remotely unavailable.
  
  =head2 EVP Configuration
---- a/doc/man7/OSSL_PROVIDER-default.pod
-+++ b/doc/man7/OSSL_PROVIDER-default.pod
-@@ -9,9 +9,10 @@
+Index: openssl-4.1.0/doc/man7/OSSL_PROVIDER-default.pod
+===================================================================
+--- openssl-4.1.0.orig/doc/man7/OSSL_PROVIDER-default.pod
++++ openssl-4.1.0/doc/man7/OSSL_PROVIDER-default.pod
+@@ -9,9 +9,10 @@ OSSL_PROVIDER-default - OpenSSL default
  The OpenSSL default provider supplies the majority of OpenSSL's diverse
  algorithm implementations. If an application doesn't specify anything else
  explicitly (e.g. in the application or via config), then this is the
@@ -192,9 +206,11 @@ provider.
  
  If an attempt to load a provider has already been made (whether successful
  or not) then the default provider won't be loaded automatically. Therefore
---- a/doc/man7/fips_module.pod
-+++ b/doc/man7/fips_module.pod
-@@ -40,6 +40,21 @@
+Index: openssl-4.1.0/doc/man7/fips_module.pod
+===================================================================
+--- openssl-4.1.0.orig/doc/man7/fips_module.pod
++++ openssl-4.1.0/doc/man7/fips_module.pod
+@@ -52,6 +52,21 @@ All of the above APIs are deprecated in
  avoid using all deprecated functions. See L<ossl-guide-migration(7)> for a list of
  deprecated functions.
  
@@ -216,9 +232,11 @@ provider.
  =head2 Making all applications use the FIPS module by default
  
  One simple approach is to cause all applications that are using OpenSSL to only
---- a/doc/man7/ossl-guide-libraries-introduction.pod
-+++ b/doc/man7/ossl-guide-libraries-introduction.pod
-@@ -48,7 +48,21 @@
+Index: openssl-4.1.0/doc/man7/ossl-guide-libraries-introduction.pod
+===================================================================
+--- openssl-4.1.0.orig/doc/man7/ossl-guide-libraries-introduction.pod
++++ openssl-4.1.0/doc/man7/ossl-guide-libraries-introduction.pod
+@@ -48,7 +48,21 @@ that the application has supplied itself
  providers in the form of loadable modules.
  
  If you don't load a provider explicitly (either in program code or via config)
@@ -241,7 +259,7 @@ provider.
  
  See L</OPENSSL PROVIDERS> below for a description of the providers that OpenSSL
  itself supplies.
-@@ -188,9 +202,10 @@
+@@ -188,9 +202,10 @@ algorithms), the property query string "
  search criterion for these implementations.  The default provider includes all
  of the functionality in the base provider below.
  
@@ -255,7 +273,7 @@ provider.
  
  See L<OSSL_PROVIDER-default(7)>.
  
-@@ -224,6 +239,11 @@
+@@ -224,6 +239,11 @@ selected with the property "fips=no".
  Typically the L</Base provider> will also need to be loaded because the FIPS
  provider does not support the encoding or decoding of keys.
  
@@ -267,9 +285,11 @@ provider.
  See L<OSSL_PROVIDER-FIPS(7)> and L<fips_module(7)>.
  
  =head2 Legacy provider
---- a/test/build.info
-+++ b/test/build.info
-@@ -71,7 +71,8 @@
+Index: openssl-4.1.0/test/build.info
+===================================================================
+--- openssl-4.1.0.orig/test/build.info
++++ openssl-4.1.0/test/build.info
+@@ -80,7 +80,8 @@ IF[{- !$disabled{tests} -}]
            fips_version_test x509_test hpke_test pairwise_fail_test \
            nodefltctxtest evp_xof_test x509_load_cert_file_test bio_meth_test \
            x509_acert_test x509_req_test strtoultest bio_pw_callback_test \
@@ -279,9 +299,9 @@ provider.
  
    IF[{- !$disabled{'ech'} -}]
      PROGRAMS{noinst}=ech_corrupt_test
-@@ -866,6 +867,10 @@
+@@ -967,6 +968,10 @@ IF[{- !$disabled{tests} -}]
    INCLUDE[ca_internals_test]=.. ../include ../apps/include
-   DEPEND[ca_internals_test]=libtestutil.a ../libssl
+   DEPEND[ca_internals_test]=libtestutil.a ../libssl.a ../libcrypto.a
  
 +  SOURCE[fips_auto_enable_test]=fips_auto_enable_test.c
 +  INCLUDE[fips_auto_enable_test]=../include  ../apps/include
@@ -290,8 +310,10 @@ provider.
    # Internal test programs.  These are essentially a collection of internal
    # test routines.  Some of them need to reach internal symbols that aren't
    # available through the shared library (at least on Linux, Solaris, Windows
+Index: openssl-4.1.0/test/fips_auto_enable_test.c
+===================================================================
 --- /dev/null
-+++ b/test/fips_auto_enable_test.c
++++ openssl-4.1.0/test/fips_auto_enable_test.c
 @@ -0,0 +1,106 @@
 +/*
 + * Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
@@ -399,8 +421,10 @@ provider.
 +    ADD_TEST(test_fips_auto);
 +    return 1;
 +}
+Index: openssl-4.1.0/test/recipes/04-test_auto_fips_mode.t
+===================================================================
 --- /dev/null
-+++ b/test/recipes/04-test_auto_fips_mode.t
++++ openssl-4.1.0/test/recipes/04-test_auto_fips_mode.t
 @@ -0,0 +1,50 @@
 +#! /usr/bin/env perl
 +# Copyright 2022 The OpenSSL Project Authors. All Rights Reserved.
@@ -452,17 +476,23 @@ provider.
 +$ENV{OPENSSL_MODULES} = curdir();
 +ok(run(test(["fips_auto_enable_test", "-fips", "-badfips"])),
 +    "running fips_auto_enable_test -fips -badfips");
+Index: openssl-4.1.0/test/recipes/04-test_auto_fips_mode/off
+===================================================================
 --- /dev/null
-+++ b/test/recipes/04-test_auto_fips_mode/off
++++ openssl-4.1.0/test/recipes/04-test_auto_fips_mode/off
 @@ -0,0 +1 @@
 +0
+Index: openssl-4.1.0/test/recipes/04-test_auto_fips_mode/on
+===================================================================
 --- /dev/null
-+++ b/test/recipes/04-test_auto_fips_mode/on
++++ openssl-4.1.0/test/recipes/04-test_auto_fips_mode/on
 @@ -0,0 +1 @@
 +1
---- a/test/run_tests.pl
-+++ b/test/run_tests.pl
-@@ -71,6 +71,7 @@
+Index: openssl-4.1.0/test/run_tests.pl
+===================================================================
+--- openssl-4.1.0.orig/test/run_tests.pl
++++ openssl-4.1.0/test/run_tests.pl
+@@ -71,6 +71,7 @@ if (!defined($jobs)) {
  $ENV{OPENSSL_CONF} = rel2abs(catfile($srctop, "apps", "openssl.cnf"));
  $ENV{OPENSSL_CONF_INCLUDE} = rel2abs(catdir($bldtop, "test"));
  $ENV{OPENSSL_MODULES} = rel2abs(catdir($bldtop, "providers"));

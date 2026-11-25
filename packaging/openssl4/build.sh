@@ -32,7 +32,7 @@ set -- ${args[@]+"${args[@]}"}
 nc=()
 [ "$noclean" = 1 ] && nc=(-nc)
 cmd=${1:-}
-version=${2:-4.0.3}
+version=${2:-4.1.0}
 ubuntu_rev=1ubuntu1
 dl=$HOME/.cache/openssl4-dl
 orig=$dl/orig/openssl_$version.orig.tar.gz
@@ -45,7 +45,19 @@ fetch)
     cd "$dl/orig"
     # pull-lp-source verifies the .dsc and the files against Launchpad's checksums.
     if [ ! -f "$orig" ] || [ ! -f "$orig.asc" ]; then
-        pull-lp-source --download-only openssl "$version-$ubuntu_rev"
+        if ! pull-lp-source --download-only openssl "$version-$ubuntu_rev"; then
+            # Ubuntu does not have this version yet (4.1.0 was upstream-only when we first built it): take the
+            # release tarball and its signature from the OpenSSL GitHub release, and check the tarball against
+            # the sha256 digest GitHub reports for the asset as well as the signature below.
+            echo "Ubuntu has no openssl $version-$ubuntu_rev; using the upstream release" >&2
+            base=https://github.com/openssl/openssl/releases/download/openssl-$version
+            env -u LD_LIBRARY_PATH curl -fsSL -o "$orig" "$base/openssl-$version.tar.gz"
+            env -u LD_LIBRARY_PATH curl -fsSL -o "$orig.asc" "$base/openssl-$version.tar.gz.asc"
+            want=$(env -u LD_LIBRARY_PATH curl -fsSL "https://api.github.com/repos/openssl/openssl/releases/tags/openssl-$version" \
+                | jq -r ".assets[] | select(.name==\"openssl-$version.tar.gz\") | .digest")
+            [ "$want" = "sha256:$(sha256sum "$orig" | cut -d' ' -f1)" ] \
+                || { echo "digest of the tarball differs from the one on the release page ($want)" >&2; exit 1; }
+        fi
     fi
     gh=$(mktemp -d "$dl/gnupg.XXXXXX")
     trap 'rm -rf "$gh"' EXIT

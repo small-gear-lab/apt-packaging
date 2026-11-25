@@ -2,9 +2,12 @@ From: Debian OpenSSL Team <pkg-openssl-devel@lists.alioth.debian.org>
 Date: Sun, 5 Nov 2017 15:09:09 +0100
 Subject: man-section
 
+OpenSSL 4.1 formats the man pages with util/mkpod2man.pl and "$(MANSUFFIX)", so the second
+hunk (pod2man --section=...$(MANSECTION)) is gone; only the suffix is set here.
+
 ---
  Configurations/unix-Makefile.tmpl | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
+ 1 file changed, 2 insertions(+), 1 deletion(-)
 
 diff --git a/Configurations/unix-Makefile.tmpl b/Configurations/unix-Makefile.tmpl
 index eff66e536f7f..759959ec80c3 100644
@@ -20,12 +23,3 @@ index eff66e536f7f..759959ec80c3 100644
  HTMLSUFFIX=html
  
  # For "optional" echo messages, to get "real" silence
-@@ -1555,7 +1556,7 @@ EOF
-           my $pod = $gen0;
-           return <<"EOF";
- $args{src}: $pod
--	pod2man --name=$name --section=$section\$(MANSUFFIX) --center=OpenSSL \\
-+	pod2man --name=$name --section=$section\$(MANSECTION) --center=OpenSSL \\
- 		--date=\$(RELEASE_DATE) --release=\$(VERSION) \\
- 		$pod >\$\@
- EOF

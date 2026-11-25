@@ -1,3 +1,17 @@
+openssl (4.1.0-1ubuntu1~smallgearlab1) resolute; urgency=medium
+
+  * Upstream 4.1.0 on top of the local 4.0.3 packaging, because Ubuntu has no
+    4.1 yet (stonking has 4.0.3-1ubuntu1). The tarball is OpenSSL's release,
+    signature and GitHub digest verified. libssl4 only, as before.
+  * man-section.patch: the pod2man hunk is gone (4.1 formats the man pages
+    with util/mkpod2man.pl and MANSUFFIX); the other 12 apply; one of the FIPS
+    patches (crypto-Automatically-use-the-FIPS-...) was refreshed because
+    dpkg-source does not accept fuzz.
+  * libssl4.symbols: libcrypto gains the OPENSSL_4.1.0 version (17 new
+    functions); nothing of 4.0.0 is gone, so the soname stays libssl.so.4.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Wed, 25 Nov 2026 12:50:00 +0900
+
 openssl (4.0.3-1ubuntu1~smallgearlab1) resolute; urgency=medium
 
   * Local rebuild of Ubuntu's 4.0.3-1ubuntu1 for resolute (OpenSSL 3.5):
