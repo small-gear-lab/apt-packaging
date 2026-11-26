@@ -452,7 +452,7 @@ index 725e868..f48f3dc 100644
 -                window.draw(
 +                let details = window.draw(
                      root_canvas,
-                     default_background,
+                     background,
                      grid_scale,
                      Some(*content_region),
                      rightmost_root_window,

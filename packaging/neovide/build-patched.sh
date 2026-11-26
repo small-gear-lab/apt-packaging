@@ -61,8 +61,13 @@ for p in "$here"/winit-patches/*.patch; do
     echo "  $(basename "$p")"
     patch -d "$work/winit-$winit_version" -p1 --no-backup-if-mismatch < "$p"
 done
-# [patch.crates-io] exists already (nvim-rs); add winit to it
-sed -i "/^\[patch.crates-io\]/a winit = { path = \"$work/winit-$winit_version\" }" Cargo.toml
+# Point winit at the patched copy. Older sources have a [patch.crates-io] table already (nvim-rs); 0.17.4 has none.
+if grep -q '^\[patch.crates-io\]' Cargo.toml; then
+    sed -i "/^\[patch.crates-io\]/a winit = { path = \"$work/winit-$winit_version\" }" Cargo.toml
+else
+    printf '\n[patch.crates-io]\nwinit = { path = "%s" }\n' "$work/winit-$winit_version" >> Cargo.toml
+fi
+grep -q "winit = { path" Cargo.toml || { echo "winit patch was not added to Cargo.toml" >&2; exit 1; }
 
 echo "== cargo build --release"
 # Not --locked: pointing winit at a path changes its entry in Cargo.lock. The versions stay as locked.

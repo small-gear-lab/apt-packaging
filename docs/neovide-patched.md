@@ -15,7 +15,7 @@ Once a testing version is installed, `ButAutomaticUpgrades` lets `apt upgrade` f
 
 ## What the patches do
 
-`packaging/neovide/patches/` (written against 0.17.2; applied in order):
+`packaging/neovide/patches/` (written against 0.17.2, and adjusted to build on 0.17.4; applied in order):
 
 | Patch | Change |
 |---|---|
@@ -48,3 +48,7 @@ to through `[patch.crates-io]`:
 - Run long builds as a background task with a waiter on the `rc=` line of the log, so the end is noticed.
 - Not sent upstream. A GitHub fork or a pull request needs the owner's permission and a look at Neovide's
   contribution policy first.
+- 0.17.4: its `Cargo.toml` has no `[patch.crates-io]` table, so the build script creates it. If the winit entry is missing the
+  build is silently unpatched (no focus change on Wayland), so the script now stops when it cannot add it. A patched build
+  shows `Compiling winit v0.30.13 (<path>/winit-0.30.13)` in the cargo log. Patch 0009 uses `background` (renamed from
+  `default_background`).
