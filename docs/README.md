@@ -27,7 +27,7 @@ To reproduce the setup elsewhere, see `../system/README.md` (the files that live
 - `resolute` (Suite `stable`): normal. `apt upgrade` takes packages from here.
 - `resolute-testing` (Suite `testing`): `NotAutomatic` + `ButAutomaticUpgrades`, so it is opt-in
   (`apt install pkg/resolute-testing`). It holds the two curl flavours, `librustls-quic` and `ngtcp2-crypto-rustls`,
-  the LLVM meta packages, the patched `neovide`, `storytold-photocraft` and `storytold-vectorcraft` (`sgl-reprepro list resolute-testing`
+  the LLVM meta packages, the patched `neovide`, `storytold-photocraft`, `storytold-vectorcraft` and `pollo-cli` (`sgl-reprepro list resolute-testing`
   shows the current list).
 
 The names follow Ubuntu's own `resolute-updates` / `resolute-backports` style, because

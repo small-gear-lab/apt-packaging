@@ -39,6 +39,8 @@ Packages built here:
 - `clang`, `llvm`, `lld`, `lldb` and the other unversioned LLVM names: `llvm-defaults` meta packages that follow LLVM 24
   (apt.llvm.org's still point at 23). In `resolute-testing`
 - `gemini-api-cli` 0.4.6: repack of the official `gemini-api` release binary
+- `pollo-cli` 0.14.0: repack of the official Pollo AI CLI (`pollo`, from the npm package `@pollo-ai/cli-linux-x64`), checked
+  against the registry's sha512 integrity and its ECDSA signature. Upstream calls it a preview, so it is in `resolute-testing`
 - fonts: `fonts-shippori-mincho`, `storytold-craft-fonts` (a metapackage) and `fonts-sgl-status-icons`
 - `storytold-photocraft` and `photocraft-cli`: the PhotoCraft image editor and its CLI, built from the upstream tag. In
   `resolute-testing`
