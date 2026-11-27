@@ -1,0 +1,85 @@
+.TH FILMCRAFT-CLI 1 "November 2026" "FilmCraft 0.20.1" "User Commands"
+.SH NAME
+filmcraft\-cli \- FilmCraft from the command line: command runner, exporter and MCP server
+.SH SYNOPSIS
+.B filmcraft\-cli
+.RI [ options ]
+.I subcommand
+.RI [ arguments ]
+.SH DESCRIPTION
+.B filmcraft\-cli
+runs FilmCraft's editor commands without a window, in a headless engine, or against a running FilmCraft window with
+.BR \-\-bridge .
+It needs no windowing system and no GPU.
+.SH SUBCOMMANDS
+.TP
+.BI "exec " "id " [ key=value " ...]"
+Run one command and print its result as JSON. The parameters can also be given as one JSON object.
+.TP
+.BR run " \fIscript.jsonl\fR | \-"
+Run commands, one JSON object with an
+.I id
+and
+.I params
+per line, in order.
+.TP
+.BR commands " [\fIfilter\fR] [\-\-json]"
+List the commands.
+.TP
+.BI describe " id"
+Print one command as JSON.
+.TP
+.BR inspect " [project|sequence]"
+Print the project tree or the active sequence as JSON.
+.TP
+.BI import " file ..."
+Import media into the project.
+.TP
+.BI export " out " [ options ]
+Export the active sequence and wait for it to finish, with an export preset (\fBexport \-\-list\-presets\fR) or a
+format guessed from the extension.
+.TP
+.B render
+Render one Program frame to PNG (\fB\-\-seconds\fR \fIS\fR \fB\-\-out\fR \fIf.png\fR).
+.TP
+.BI probe " media"
+Print information about a media file as JSON.
+.TP
+.B mcp
+Run an MCP server on standard input and output, so that an AI agent can drive the editor engine, headless or
+with
+.B \-\-bridge
+attached to a running window.
+.SH OPTIONS
+.TP
+.BI \-\-project " p.fcproj"
+Open this project first (headless).
+.TP
+.B \-\-demo
+Open the built-in demo project (headless).
+.TP
+.B \-\-save
+Save the project back to
+.B \-\-project
+when done.
+.TP
+.BI \-\-save\-as " p.fcproj"
+Save the project to this path when done.
+.TP
+.BI \-\-bridge " 127.0.0.1:PORT"
+Send commands to the running app (started with
+.BR "filmcraft \-\-control PORT" ).
+.TP
+.B \-\-version
+Print the version and exit.
+.PP
+.B filmcraft\-cli help
+prints the full usage.
+.SH EXIT STATUS
+0 on success; 1 when a command failed, or when an export or render drew offline media without
+.BR \-\-allow\-offline ;
+2 on a usage error.
+.SH SEE ALSO
+.BR filmcraft (1)
+.PP
+https://getartcraft.com/apps/filmcraft

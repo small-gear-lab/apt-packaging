@@ -1,0 +1,31 @@
+.TH FILMCRAFT 1 "November 2026" "FilmCraft" "User Commands"
+.SH NAME
+filmcraft \- open-source video editor
+.SH SYNOPSIS
+.B filmcraft
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B filmcraft
+starts FilmCraft, a native application written in Rust. It has timeline editing with source and program monitors, colour grading, effects, titles, audio mixing and export. Media files and projects given on the command line are opened.
+.PP
+Headless work (running commands, rendering, the MCP server) is done by
+.BR filmcraft-cli (1).
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.BI "\-\-control " PORT
+Start a localhost JSON-lines control server on
+.IR PORT ,
+which lets
+.B "filmcraft-cli mcp"
+attach to the running window.
+.PP
+.B filmcraft \-\-help
+or the program's usage text lists the remaining options.
+.SH SEE ALSO
+.BR filmcraft-cli (1)
+.PP
+https://getartcraft.com/apps/filmcraft

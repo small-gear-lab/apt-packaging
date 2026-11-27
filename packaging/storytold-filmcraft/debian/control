@@ -1,0 +1,66 @@
+Source: storytold-filmcraft
+Section: video
+Priority: optional
+Maintainer: small-gear-lab <289302950+marie-222@users.noreply.github.com>
+# cargo and rustc are not listed: this is built with the builder's own rustup toolchain (see build.sh),
+# which dpkg's dependency check cannot see.
+Build-Depends: debhelper-compat (= 13),
+               pkgconf,
+               libxkbcommon-dev,
+               libwayland-dev,
+               libx11-dev,
+               libxi-dev,
+               libxrandr-dev,
+               libgl1-mesa-dev,
+               libgtk-3-dev,
+               libasound2-dev,
+Standards-Version: 4.7.3
+Homepage: https://getartcraft.com/apps/filmcraft
+Rules-Requires-Root: no
+
+Package: storytold-filmcraft
+Architecture: amd64
+# Windowing (X11/Wayland, xkbcommon) and the GPU (Vulkan, EGL/GL) are loaded at run time with dlopen, so
+# dpkg-shlibdeps cannot see them: they are listed here, as upstream's nfpm.yaml does for its own .deb.
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         libxkbcommon0,
+         libxkbcommon-x11-0,
+         libwayland-client0,
+         libx11-6,
+         libx11-xcb1,
+         libxcb1,
+         libxcursor1,
+         libxi6,
+         libvulkan1 | libegl1,
+         libasound2t64 | libasound2,
+Recommends: storytold-filmcraft-cli (= ${binary:Version}),
+            storytold-craft-fonts,
+            mesa-vulkan-drivers,
+            libegl-mesa0,
+            xdg-desktop-portal,
+Description: open-source video editor
+ FilmCraft is a native, nonlinear video editor written in Rust. It has timeline
+ editing with source and program monitors, colour grading and scopes, effects
+ and keyframes, titles and captions, audio mixing with loudness meters and
+ export, and it composites on the GPU (wgpu).
+ .
+ The headless command runner, exporter and MCP server that drive the same
+ editor commands are in the storytold-filmcraft-cli package.
+
+Package: storytold-filmcraft-cli
+Architecture: amd64
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+Suggests: storytold-filmcraft (= ${binary:Version}),
+         storytold-craft-fonts,
+Enhances: storytold-filmcraft,
+Description: headless command runner, exporter and MCP server for the FilmCraft editor
+ filmcraft-cli runs FilmCraft's editor commands without a window: it opens a
+ project or starts an empty one, runs commands from a list or a script, probes
+ media files, renders frames and exports the active sequence.
+ .
+ filmcraft-cli mcp starts an MCP server on standard input and output, so that
+ an AI agent can drive the editor engine, headless or attached to a running
+ FilmCraft window. It has no windowing or GPU dependencies. The
+ storytold-filmcraft package provides the editor window.

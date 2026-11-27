@@ -70,3 +70,23 @@ from PhotoCraft:
 
 The editor window and `vectorcraft-cli` were checked by converting an SVG to PDF with the packaged CLI; the editor
 window itself was not started.
+
+## storytold-filmcraft and storytold-effectcraft: the same recipe again
+
+FilmCraft (video editor, 0.20.1) and EffectCraft (motion graphics, 0.25.1) are packaged in `packaging/storytold-filmcraft/` and
+`packaging/storytold-effectcraft/`, copies of the VectorCraft directory with the same two packages each (`-cli` carries
+`/usr/bin/<app>-cli`), the same `build.sh fetch` / `build`, and builds in `~/.cache/<app>-dl/`. What differs:
+
+- Both depend on ALSA (`libasound2t64 | libasound2`, loaded at run time) and Build-Depend on `libasound2-dev`.
+- The bundled fonts are Inter, Noto Serif, JetBrains Mono (EffectCraft also Noto Sans Symbols 2); there are no PDF backend
+  data or Lucide icons. `debian/copyright` and the `.docs` files list these. Neither has man page generators, so the man
+  pages are written by hand: check them against `<app>-cli help` after an upgrade.
+- FilmCraft's optional `neural-voices` feature is not built (upstream's deb build default).
+- **EffectCraft cannot be `cargo vendor`ed**: its Cargo.lock takes the same craft-libs crate (name + version) from several git
+  revisions and `cargo vendor` stops with "found duplicate version of package". Its `build.sh fetch` runs `cargo fetch --locked`
+  into a private CARGO_HOME instead and snapshots it (`effectcraft-<ver>-cargo-home.tar.xz`, about 600 MB, containing
+  `registry/cache`, `git/` and a small license-only `vendor/` made by `snapshot-licenses.py`). `build` unpacks it to
+  `<worktree>/cargo-home` and builds offline with that CARGO_HOME. git crates inherit fields from their workspace, so
+  `snapshot-licenses.py` writes a resolved Cargo.toml for them.
+- `filmcraft-cli` has no `--automation-read-root`/`--automation-write-root` (EffectCraft's has), so its MCP server cannot be confined to a folder.
+- `pgrep -f` inside a waiting loop matches the loop's own command line and never ends; wait for the build's own completion notice instead.

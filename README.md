@@ -46,6 +46,9 @@ Packages built here:
   `resolute-testing`
 - `storytold-vectorcraft` and `vectorcraft-cli`: the VectorCraft vector illustration editor and its CLI, built the same
   way and split the same way. In `resolute-testing`
+- `storytold-filmcraft` and `storytold-effectcraft` (each with a `-cli` package): the FilmCraft video editor and the
+  EffectCraft motion graphics compositor, built the same way and split the same way. EffectCraft is built from a
+  snapshot of a `cargo fetch` CARGO_HOME, because `cargo vendor` cannot handle its lock. In `resolute-testing`
 
 Start with `docs/README.md`.
 

@@ -1,0 +1,31 @@
+.TH EFFECTCRAFT 1 "November 2026" "EffectCraft" "User Commands"
+.SH NAME
+effectcraft \- open-source motion graphics and compositing editor
+.SH SYNOPSIS
+.B effectcraft
+.RI [ options ]
+.RI [ file ...]
+.SH DESCRIPTION
+.B effectcraft
+starts EffectCraft, a native application written in Rust. It has layers with keyframes, masks, shapes, text animators, expressions, 3D cameras and lights, effects and a render queue. Projects (.ecproj) and media files given on the command line are opened.
+.PP
+Headless work (running commands, rendering, the MCP server) is done by
+.BR effectcraft-cli (1).
+.SH OPTIONS
+.TP
+.B \-\-version
+Print the version and exit.
+.TP
+.BI "\-\-control " PORT
+Start a localhost JSON-lines control server on
+.IR PORT ,
+which lets
+.B "effectcraft-cli mcp"
+attach to the running window.
+.PP
+.B effectcraft \-\-help
+or the program's usage text lists the remaining options.
+.SH SEE ALSO
+.BR effectcraft-cli (1)
+.PP
+https://getartcraft.com/apps/effectcraft

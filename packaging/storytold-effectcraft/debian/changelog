@@ -1,0 +1,20 @@
+storytold-effectcraft (0.25.1-1~smallgearlab1) resolute; urgency=medium
+
+  * Initial packaging of EffectCraft 0.25.1, an open-source a motion graphics and compositing editor
+    written in Rust (storytold/effectcraft), from the upstream release tag.
+  * Built offline with the local rustup toolchain from the crates that
+    build.sh vendored. The default features are built, as upstream's own deb
+    build does.
+  * Two packages, split as storytold-vectorcraft is: storytold-effectcraft (the
+    editor window) and storytold-effectcraft-cli (the headless renderer, command runner and MCP server). The packages carry
+    the storytold prefix of their upstream organisation; the programs keep
+    their names (/usr/bin/effectcraft, /usr/bin/effectcraft-cli). The CLI has no
+    windowing or GPU dependencies; the editor recommends it. Both depend on
+    ALSA (loaded at run time), as upstream's nfpm.yaml lists.
+  * The CLI has no man page generator or shell completions upstream, so the
+    man pages are written here (debian/effectcraft.1, debian/effectcraft-cli.1).
+  * debian/copyright: gen-crate-licenses.py writes a paragraph for each Rust
+    crate that is linked in, and the .docs files install the license files of
+    those crates and of the bundled fonts.
+
+ -- small-gear-lab <289302950+marie-222@users.noreply.github.com>  Fri, 27 Nov 2026 16:30:00 +0900

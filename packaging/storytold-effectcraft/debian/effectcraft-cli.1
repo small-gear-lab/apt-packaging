@@ -1,0 +1,71 @@
+.TH EFFECTCRAFT-CLI 1 "November 2026" "EffectCraft 0.25.1" "User Commands"
+.SH NAME
+effectcraft\-cli \- EffectCraft from the command line: renderer, command runner and MCP server
+.SH SYNOPSIS
+.B effectcraft\-cli
+.I subcommand
+.RI [ arguments ]
+.RB [ \-\-json ]
+.SH DESCRIPTION
+.B effectcraft\-cli
+runs EffectCraft's editor commands without a window. It needs no windowing system and no GPU.
+.SH SUBCOMMANDS
+.TP
+.B info
+Print a summary of the project and the engine.
+.TP
+.BR commands " [\-\-filter \fITEXT\fR] [\-\-enabled]"
+List the engine commands.
+.TP
+.BI exec " command\-id " "" [ \-\-params " JSON" ]
+Run one engine command.
+.TP
+.BR run " \fIid json\fR ..."
+Run several commands in order. \fB\-\-args\-file\fR \fIF\fR and \fB\-\-commands\fR \fIFILE\fR|\fB\-\fR take the steps
+from a file or from standard input.
+.TP
+.BI props " comp layer"
+Print a layer's property tree with the paths of its properties.
+.TP
+.BI get " comp layer path"
+Read a property.
+.TP
+.BI set " comp layer path value"
+Set a property.
+.TP
+.B render\-frame
+Render one frame of a composition, to PNG with
+.BR \-\-out .
+.TP
+.B render
+Render a composition to a file (\fB\-\-out\fR \fIFILE\fR), in the format given by
+.B \-\-format
+or guessed from the extension, or add it to the render queue with
+.BR \-\-queue .
+.TP
+.BR script " \fIFILE.jsx\fR | \-\-eval \fICODE\fR"
+Run JavaScript with the After Effects-style object model (\fBapp.project\fR, compositions, layers, properties).
+.TP
+.B mcp
+Run an MCP server on standard input and output, so that an AI agent can drive the editor engine, headless or
+attached to a running EffectCraft window.
+.PP
+.B replay
+and
+.B bench
+are also subcommands; see the usage text.
+.SH OPTIONS
+.TP
+.B \-\-json
+Print results as JSON.
+.TP
+.B \-\-version
+Print the version and exit.
+.PP
+Running
+.B effectcraft\-cli
+without a valid subcommand prints the full usage, with all the options of the render subcommands.
+.SH SEE ALSO
+.BR effectcraft (1)
+.PP
+https://getartcraft.com/apps/effectcraft
